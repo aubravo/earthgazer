@@ -1,0 +1,132 @@
+[project]
+name = "earthgazer"
+description = "Satellite Image Processing Pipeline"
+dynamic = ["version"]
+readme = "README.md"
+requires-python = ">=3.10"
+license = "GPL-3.0-or-later"
+authors = [{name = "Alvaro Bravo", email = "alvaroubravo@gmail.com"}]
+maintainers = [{name = "Alvaro Bravo", email = "alvaroubravo@gmail.com"}]
+keywords = ["earthgazer", "satellite", "image", "processing", "pipeline"]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+  "Operating System :: Unix",
+  "Operating System :: POSIX",
+  "Operating System :: Microsoft :: Windows",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+  "Topic :: Utilities"
+]
+documentation = ""
+"Source Code" = ""
+dependencies = ["pandas", "pydantic", "sqlalchemy"]
+
+[tool.hatch]
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build]
+directory = "dist"
+clean = true
+
+[tool.hatch.build.hooks.vcs]
+version-file = "_version.py"
+
+[tool.hatch.build.targets.sdist]
+packages = ["src/foo"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/earthgazer"]
+
+[tool.hatch.envs.default]
+type = "container"
+dependencies = ["pandas", "pydantic", "sqlalchemy"]
+
+[tool.hatch.envs.lint]
+type = "container"
+detached = true
+dependencies = ["ruff"]
+
+[tool.hatch.envs.lint.scripts]
+style = ["ruff check --fix --exit-non-zero-on-Fix --show-fixes"]
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+extend-exclude = ["tests/", "_version.py"]
+lint.ignore = [
+    "RUF001", # ruff-specific rules ambiguous-unicode-character-string
+    "S101", # flake8-bandit assert
+    "S308", # flake8-bandit suspicious-mark-safe-usage
+    "E501", # pycodestyle line-too-long
+    "F841", # pyflakes unused-variable
+    "S608", # flake8-bandit hardcoded-sql-expression
+    "B023", # flake8-bugbear function-uses-loop-variable
+    "S307",
+    "B028"
+]
+line-length = 140
+lint.select = [
+    "F", # pyflakes
+    "E", # pycodestyle errors
+    "W", # pycodestyle warnings
+    "N", # pep8-naming
+    # "ANN", # flake8-annotations
+    "S", # flake8-bandit
+    # "BLE", # flake8-blind-except
+    # "FBT", # flake8-boolean-trap
+    "B", # flake8-bugbear
+    "A", # flake8-builtins
+    "COM", # flake8-commas
+    # "CPY", # flake8-copyright
+    "C4", # flake8-comprehensions
+    #"DTZ", # flake8-datetimez
+    "T10", # flake8-debugger
+    "EM", # flake8-errormsg
+    "EXE", # flake8-executable
+    # "FA", # flake8-future-annotations
+    "ISC", # flake8-implicit-str-concat
+    "ICN", # flake8-import-conventions
+    "LOG", # flake8-logging
+    "G", # flake8-logging-format
+    "INP", # flake8-no-pep420
+    "PIE", # flake8-pie
+    # "T20", # flake8-print
+    # "PYI", # flake8-pyi
+    "PT", # flake8-pytest-style
+    "Q", # flake8-quotes
+    "RSE", # flake8-raise
+    "RET", # flake8-return
+
+    "I", # isort
+    "INT", # flake8-gettext
+
+    "PLC", # pylint convention
+    "PLE", # pylint errors
+
+    "PTH", # flake8-use-pathlib
+
+
+    "RUF", # ruff-specific rules
+    "UP", # pyupgrade
+    "SIM", # flake8-simplify
+    "TID", # flake8-tidy-imports
+    "TCH" # flake8-type-checking
+]
+target-version = "py310"
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.ruff.lint.isort]
+force-single-line = true
