@@ -26,9 +26,14 @@ def main() -> None:
             source="Satellite X",
             storage_location="/path/to/image.tif",
             acquisition_date=datetime.now(),
-            spectral_range_start=400.0,
-            spectral_range_end=2500.0,
-            spatial_resolution=30.0
+            sensing_time=datetime.now(),
+            mission_id="MISSION_001",
+            source_image_id="IMAGE_001",
+            north_latitude=45.0,
+            south_latitude=44.0,
+            west_longitude=-74.0,
+            east_longitude=-73.0,
+            atmospheric_reference_level=1013.25
         )
         logger.info(f"Created new hyperspectral image with ID: {new_image.id}")
 
@@ -40,9 +45,15 @@ def main() -> None:
         updated_image = HyperspectralImage.update_image(
             session=session,
             image_id=new_image.id,
-            storage_location="/new/path/to/image.tif"
+            storage_location="/new/path/to/image.tif",
+            sensing_time=datetime.now(),
+            north_latitude=45.5,
+            atmospheric_reference_level=1015.0
         )
         logger.info(f"Updated image storage location: {updated_image.storage_location}")
+        logger.info(f"Updated image sensing time: {updated_image.sensing_time}")
+        logger.info(f"Updated image north latitude: {updated_image.north_latitude}")
+        logger.info(f"Updated image atmospheric reference level: {updated_image.atmospheric_reference_level}")
 
         # Delete the image
         deleted_image = HyperspectralImage.delete_image(session, new_image.id)
