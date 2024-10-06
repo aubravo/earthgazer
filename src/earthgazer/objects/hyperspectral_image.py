@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from datetime import datetime
+
 from typing import TypeVar
-from datetime import datetime
 
 from sqlmodel import Field, Session, SQLModel, select
 
@@ -22,7 +26,7 @@ class HyperspectralImage(SQLModel, table=True):
     atmospheric_reference_level: float = Field(description="The atmospheric reference level")
 
     @classmethod
-    def create(cls: type[T], session: Session, source: str, storage_location: str, 
+    def create(cls: type[T], session: Session, source: str, storage_location: str,
                acquisition_date: datetime, sensing_time: datetime, mission_id: str,
                source_image_id: str, north_latitude: float, south_latitude: float,
                west_longitude: float, east_longitude: float, atmospheric_reference_level: float) -> T:
