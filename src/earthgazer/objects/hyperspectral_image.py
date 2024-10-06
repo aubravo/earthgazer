@@ -8,6 +8,7 @@ if TYPE_CHECKING:
 from typing import TypeVar
 
 from sqlmodel import Field, Session, SQLModel, select
+from src.earthgazer.env_management.settings import settings
 
 T = TypeVar("T", bound="HyperspectralImage")
 
@@ -83,3 +84,15 @@ class HyperspectralImage(SQLModel, table=True):
             session.delete(image)
             session.commit()
         return image
+
+    @classmethod
+    def query_bigquery(cls, query: str) -> list[dict]:
+        """
+        Execute a BigQuery SQL query and return the results.
+
+        :param query: SQL query string
+        :return: List of dictionaries representing the query results
+        """
+        query_job = settings.bigquery_client.query(query)
+        results = query_job.result()
+        return [dict(row) for row in results]
