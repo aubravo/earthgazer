@@ -1,12 +1,15 @@
+from typing import TypeVar
+
+from google.cloud import bigquery
+from google.oauth2 import service_account
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from google.oauth2 import service_account
-from google.cloud import bigquery
 
+T = TypeVar("T", bound="Settings")
 
 class Settings(BaseSettings):
     # Define the settings here
-    test_setting: str = Field(default="default value")
+    TEST_SETTING: str = Field(default="default value")
     BIGQUERY_CREDENTIALS_PATH: str = Field(default="./bigquery-credentials.json")
 
     # Settings configuration
@@ -16,14 +19,14 @@ class Settings(BaseSettings):
     )
 
     @property
-    def google_credentials(self):
+    def google_credentials(self: T) -> service_account.Credentials:
         return service_account.Credentials.from_service_account_file(
             self.BIGQUERY_CREDENTIALS_PATH,
             scopes=["https://www.googleapis.com/auth/cloud-platform"],
         )
 
     @property
-    def bigquery_client(self):
+    def bigquery_client(self: T) -> bigquery.Client:
         return bigquery.Client(credentials=self.google_credentials, project=self.google_credentials.project_id)
 
 # Create a global instance of the Settings

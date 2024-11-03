@@ -1,0 +1,114 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "earthgazer"
+dynamic = ["version"]
+description = 'Satellital hyperspectral image processing for ML algorithm training.'
+readme = "README.md"
+requires-python = ">=3.8"
+license-files = { paths = ["LICENSE.txt"] }
+keywords = [
+  "hyperspectral",
+  "processing",
+  "satellite",
+  "ml"
+]
+authors = [
+  { name = "alvaro bravo", email = "alvaroubravo@gmail.com" },
+]
+mainteiners = [
+  { name = "alvaro bravo", email = "alvaroubravo@gmail.com" },
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+]
+dependencies = [
+  "pydantic",
+  "pydantic-settings",
+  "sqlmodel",
+  "sqlalchemy"
+]
+
+[project.urls]
+Documentation = "https://github.com/aubravo/earthgazer#readme"
+Issues = "https://github.com/aubravo/earthgazer/issues"
+Source = "https://github.com/aubravo/earthgazer"
+
+[tool.hatch.version]
+path = "src/earthgazer/__about__.py"
+
+[tool.hatch.envs.types]
+extra-dependencies = [
+  "mypy>=1.0.0",
+]
+[tool.hatch.envs.types.scripts]
+check = "mypy --install-types --non-interactive {args:src/earthgazer tests}"
+
+[tool.hatch.envs.default.env-vars]
+EARTHGAZER_TEST_SETTING = "Not the default value"
+
+
+[tool.coverage.run]
+source_pkgs = ["earthgazer", "tests"]
+branch = true
+parallel = true
+omit = [
+  "src/earthgazer/__about__.py",
+]
+
+[tool.coverage.paths]
+earthgazer = ["src/earthgazer", "*/earthgazer/src/earthgazer"]
+tests = ["tests", "*/earthgazer/tests"]
+
+[tool.coverage.report]
+exclude_lines = [
+  "no cov",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+]
+
+[tool.ruff.lint.pylint]
+max-args = 15
+
+[tool.ruff]
+line-length = 130
+
+[tool.ruff.lint]
+select = [
+  "F",
+  "E",
+  "I",
+  "N",
+  "W",
+  "UP",
+  "ANN",
+  "B",
+  "A",
+  "COM",
+  "C4",
+  "DTZ",
+  "EM",
+  "FA",
+  "SIM",
+  "TCH",
+  "ARG",
+  "TD",
+  "FIX",
+  "PLC",
+  "PLE",
+  "PLR",
+  "PLW",
+  "FLY",
+  "PERF",
+  "Q"
+]

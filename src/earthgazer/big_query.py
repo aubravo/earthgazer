@@ -1,10 +1,15 @@
+from __future__ import annotations
+
+from typing import Any, TypeVar
+
 from google.cloud import bigquery
 from google.oauth2 import service_account
 from jinja2 import Template
-from typing import Dict, Any, List
+
+T = TypeVar("T", bound="BigQueryHandler")
 
 class BigQueryHandler:
-    def __init__(self, credentials_path: str):
+    def __init__(self: T, credentials_path: str) -> None:
         """
         Initialize the BigQueryHandler with the path to the service account credentials.
 
@@ -16,7 +21,7 @@ class BigQueryHandler:
         )
         self.client = bigquery.Client(credentials=self.credentials, project=self.credentials.project_id)
 
-    def execute_query(self, query: str) -> List[Dict[str, Any]]:
+    def execute_query(self: T, query: str) -> list[dict[str, Any]]:
         """
         Execute a BigQuery SQL query and return the results.
 
@@ -27,7 +32,7 @@ class BigQueryHandler:
         results = query_job.result()
         return [dict(row) for row in results]
 
-    def render_query(self, query_template: str, params: Dict[str, Any]) -> str:
+    def render_query(self: T, query_template: str, params: dict[str, Any]) -> str:
         """
         Render a query template using Jinja2 with the provided parameters.
 
@@ -38,7 +43,7 @@ class BigQueryHandler:
         template = Template(query_template)
         return template.render(params)
 
-    def execute_templated_query(self, query_template: str, params: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def execute_templated_query(self: T, query_template: str, params: dict[str, Any]) -> list[dict[str, Any]]:
         """
         Render a query template and execute it, returning the results.
 
