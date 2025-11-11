@@ -2,3 +2,5 @@ pydantic
 pydantic-settings
 sqlalchemy
 numpy
+psycopg2-binary
+alembic
