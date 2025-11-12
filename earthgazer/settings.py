@@ -1,6 +1,8 @@
 import logging
 from pathlib import Path
-from typing import ClassVar
+import base64
+import json
+import tempfile
 
 from pydantic import field_validator
 from pydantic import model_validator
@@ -39,12 +41,38 @@ class DatabaseManagerSettings(BaseSettings, extra="allow"):
         return self
 
 
-class EarthGazerSettings(BaseSettings):
-    config_path: Path = Path(Path.home() / ".eg")
-    database: DatabaseManagerSettings = DatabaseManagerSettings()
-    model_config = SettingsConfigDict(env_file=".env", env_nested_delimiter="__", env_prefix="earthgazer__")
+class GcloudSettings(BaseSettings):
+    service_account: str | dict | None = None
+    bucket_name: str | None = None
 
-    @field_validator("config_path")
-    @classmethod
-    def path_validator(cls, path: Path):
-        path.mkdir(parents=True, exist_ok=True)
+    @model_validator(mode="after")
+    def validate_service_account(self):
+        
+        if not self.service_account:
+            logging.debug("Service account is empty, returning None")
+            return self
+        
+        if isinstance(self.service_account, dict):
+            logging.debug("Service account is already a dictionary")
+            return self
+        
+        logging.debug("Validating service account")
+        
+        try:
+            self.service_account = base64.b64decode(self.service_account)
+        except (ValueError, TypeError):
+            logging.debug("Service account is not base64 encoded")
+
+        try:
+            self.service_account = json.loads(self.service_account)
+            logging.debug("Service account is valid JSON")
+        except json.JSONDecodeError:
+            raise Exception("Service account is not a valid JSON")
+
+        return self
+        
+
+class EarthGazerSettings(BaseSettings):
+    database: DatabaseManagerSettings = DatabaseManagerSettings()
+    gcloud: GcloudSettings = GcloudSettings()
+    model_config = SettingsConfigDict(env_file=".env", env_nested_delimiter="__", env_prefix="earthgazer__")
