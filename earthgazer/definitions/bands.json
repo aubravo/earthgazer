@@ -1,0 +1,126 @@
+{
+    "SENTINEL_2": {
+      "B01": {
+        "name": "Coastal aerosol",
+        "wavelength": 0.4439,
+        "resolution": 60
+      },
+      "B02": {
+        "name": "Blue",
+        "wavelength": 0.490,
+        "resolution": 10
+      },
+      "B03": {
+        "name": "Green",
+        "wavelength": 0.560,
+        "resolution": 10
+      },
+      "B04": {
+        "name": "Red",
+        "wavelength": 0.665,
+        "resolution": 10
+      },
+      "B05": {
+        "name": "Red edge 1",
+        "wavelength": 0.705,
+        "resolution": 20
+      },
+      "B06": {
+        "name": "Red edge 2",
+        "wavelength": 0.740,
+        "resolution": 20
+      },
+      "B07": {
+        "name": "Red edge 3",
+        "wavelength": 0.783,
+        "resolution": 20
+      },
+      "B08": {
+        "name": "NIR",
+        "wavelength": 0.842,
+        "resolution": 10
+      },
+      "B8A": {
+        "name": "NIR",
+        "wavelength": 0.865,
+        "resolution": 20
+      },
+      "B09": {
+        "name": "Water vapour",
+        "wavelength": 0.940,
+        "resolution": 60
+      },
+      "B10": {
+        "name": "SWIR - Cirrus",
+        "wavelength": 1.375,
+        "resolution": 60
+      },
+      "B11": {
+        "name": "SWIR 1",
+        "wavelength": 1.610,
+        "resolution": 20
+      },
+      "B12": {
+        "name": "SWIR 2",
+        "wavelength": 2.190,
+        "resolution": 20
+      }
+    },
+    "LANDSAT_8": {
+      "B1": {
+        "name": "Coastal aerosol",
+        "wavelength": 0.4439,
+        "resolution": 30
+      },
+      "B2": {
+        "name": "Blue",
+        "wavelength": 0.490,
+        "resolution": 30
+      },
+      "B3": {
+        "name": "Green",
+        "wavelength": 0.560,
+        "resolution": 30
+      },
+      "B4": {
+        "name": "Red",
+        "wavelength": 0.665,
+        "resolution": 30
+      },
+      "B5": {
+        "name": "NIR",
+        "wavelength": 0.842,
+        "resolution": 30
+      },
+      "B6": {
+        "name": "SWIR 1",
+        "wavelength": 1.610,
+        "resolution": 30
+      },
+      "B7": {
+        "name": "SWIR 2",
+        "wavelength": 2.190,
+        "resolution": 30
+      },
+      "B8": {
+        "name": "Panchromatic",
+        "wavelength": 0.590,
+        "resolution": 15
+      },
+      "B9": {
+        "name": "Cirrus",
+        "wavelength": 1.375,
+        "resolution": 30
+      },
+      "B10": {
+        "name": "TIRS 1",
+        "wavelength": 10.895,
+        "resolution": 100
+      },
+      "B11": {
+        "name": "TIRS 2",
+        "wavelength": 12.005,
+        "resolution": 100
+      }
+    }
+  }
