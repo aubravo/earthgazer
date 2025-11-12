@@ -1,10 +1,7 @@
-import logging
-from pathlib import Path
 import base64
 import json
-import tempfile
+import logging
 
-from pydantic import field_validator
 from pydantic import model_validator
 from pydantic_settings import BaseSettings
 from pydantic_settings import SettingsConfigDict
@@ -47,17 +44,17 @@ class GcloudSettings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_service_account(self):
-        
+
         if not self.service_account:
             logging.debug("Service account is empty, returning None")
             return self
-        
+
         if isinstance(self.service_account, dict):
             logging.debug("Service account is already a dictionary")
             return self
-        
+
         logging.debug("Validating service account")
-        
+
         try:
             self.service_account = base64.b64decode(self.service_account)
         except (ValueError, TypeError):
@@ -70,7 +67,7 @@ class GcloudSettings(BaseSettings):
             raise Exception("Service account is not a valid JSON")
 
         return self
-        
+
 
 class EarthGazerSettings(BaseSettings):
     database: DatabaseManagerSettings = DatabaseManagerSettings()
