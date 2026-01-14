@@ -120,4 +120,4 @@ class ProcessingJob(Base):
     total_tasks: Mapped[int] = mapped_column(Integer, default=0)
     completed_tasks: Mapped[int] = mapped_column(Integer, default=0)
     failed_tasks: Mapped[int] = mapped_column(Integer, default=0)
-    metadata: Mapped[str | None] = mapped_column(String(2000), default=None)  # JSON string for additional info
+    job_metadata: Mapped[str | None] = mapped_column(String(2000), default=None)  # JSON string for additional info
