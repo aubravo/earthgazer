@@ -6,3 +6,7 @@ psycopg2-binary
 alembic
 google-cloud-bigquery
 google-cloud-storage
+rasterio
+scikit-learn
+pandas
+matplotlib
