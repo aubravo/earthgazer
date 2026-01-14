@@ -15,5 +15,5 @@ RUN wget https://github.com/Wilfred/difftastic/releases/download/0.65.0/difft-x8
     && tar -xzf difft-x86_64-unknown-linux-gnu.tar.gz -C /usr/local/bin/ \
     && rm difft-x86_64-unknown-linux-gnu.tar.gz
 
-
-
+RUN pip install --no-cache-dir \
+    ruff
