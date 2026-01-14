@@ -1,0 +1,40 @@
+# Production Dockerfile for EarthGazer
+FROM python:3.11-slim-bookworm
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies required for geospatial libraries
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    libgdal-dev \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY earthgazer/ ./earthgazer/
+COPY alembic/ ./alembic/
+COPY alembic.ini .
+
+# Create data directories
+RUN mkdir -p /app/data/raw /app/data/features /app/data/processed
+
+# Create non-root user for security
+RUN useradd -m -u 1000 earthgazer && \
+    chown -R earthgazer:earthgazer /app
+
+USER earthgazer
+
+# Default command (can be overridden in docker-compose)
+CMD ["celery", "-A", "earthgazer.celery_app", "worker", "--loglevel=info"]

@@ -1,0 +1,187 @@
+version: '3.8'
+
+services:
+  # Main application service
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    volumes:
+      - ./data:/app/data
+      - ./earthgazer/definitions:/app/earthgazer/definitions:ro
+    environment:
+      - EARTHGAZER__CELERY__BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - EARTHGAZER__CELERY__RESULT_BACKEND=redis://:${REDIS_PASSWORD}@redis:6379/1
+      - EARTHGAZER__DATABASE__DRIVERNAME=postgresql
+      - EARTHGAZER__DATABASE__USERNAME=${DB_USER}
+      - EARTHGAZER__DATABASE__PASSWORD=${DB_PASSWORD}
+      - EARTHGAZER__DATABASE__HOST=db
+      - EARTHGAZER__DATABASE__PORT=5432
+      - EARTHGAZER__DATABASE__DATABASE=${DB_NAME}
+      - EARTHGAZER__GCLOUD__SERVICE_ACCOUNT=${GCLOUD_SERVICE_ACCOUNT}
+      - EARTHGAZER__GCLOUD__BUCKET_NAME=${GCLOUD_BUCKET_NAME}
+    depends_on:
+      - db
+      - redis
+    networks:
+      - earthgazer-net
+
+  # PostgreSQL database
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME}
+    networks:
+      - earthgazer-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis message broker
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    networks:
+      - earthgazer-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # I/O worker - optimized for download/upload tasks
+  celery-io-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    command: celery -A earthgazer.celery_app worker --loglevel=info -Q io_queue --concurrency=8 --max-tasks-per-child=50 --hostname=io-worker@%h
+    volumes:
+      - ./data:/app/data
+      - ./earthgazer/definitions:/app/earthgazer/definitions:ro
+    environment:
+      - EARTHGAZER__CELERY__BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - EARTHGAZER__CELERY__RESULT_BACKEND=redis://:${REDIS_PASSWORD}@redis:6379/1
+      - EARTHGAZER__DATABASE__DRIVERNAME=postgresql
+      - EARTHGAZER__DATABASE__USERNAME=${DB_USER}
+      - EARTHGAZER__DATABASE__PASSWORD=${DB_PASSWORD}
+      - EARTHGAZER__DATABASE__HOST=db
+      - EARTHGAZER__DATABASE__PORT=5432
+      - EARTHGAZER__DATABASE__DATABASE=${DB_NAME}
+      - EARTHGAZER__GCLOUD__SERVICE_ACCOUNT=${GCLOUD_SERVICE_ACCOUNT}
+      - EARTHGAZER__GCLOUD__BUCKET_NAME=${GCLOUD_BUCKET_NAME}
+    depends_on:
+      - db
+      - redis
+    networks:
+      - earthgazer-net
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+
+  # CPU worker - optimized for computation tasks
+  celery-cpu-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    command: celery -A earthgazer.celery_app worker --loglevel=info -Q cpu_queue --concurrency=4 --max-tasks-per-child=20 --hostname=cpu-worker@%h
+    volumes:
+      - ./data:/app/data
+      - ./earthgazer/definitions:/app/earthgazer/definitions:ro
+    environment:
+      - EARTHGAZER__CELERY__BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - EARTHGAZER__CELERY__RESULT_BACKEND=redis://:${REDIS_PASSWORD}@redis:6379/1
+      - EARTHGAZER__DATABASE__DRIVERNAME=postgresql
+      - EARTHGAZER__DATABASE__USERNAME=${DB_USER}
+      - EARTHGAZER__DATABASE__PASSWORD=${DB_PASSWORD}
+      - EARTHGAZER__DATABASE__HOST=db
+      - EARTHGAZER__DATABASE__PORT=5432
+      - EARTHGAZER__DATABASE__DATABASE=${DB_NAME}
+      - EARTHGAZER__GCLOUD__SERVICE_ACCOUNT=${GCLOUD_SERVICE_ACCOUNT}
+      - EARTHGAZER__GCLOUD__BUCKET_NAME=${GCLOUD_BUCKET_NAME}
+    depends_on:
+      - db
+      - redis
+    networks:
+      - earthgazer-net
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+
+  # Default worker - handles miscellaneous tasks
+  celery-default-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    command: celery -A earthgazer.celery_app worker --loglevel=info -Q default --concurrency=4 --max-tasks-per-child=100 --hostname=default-worker@%h
+    volumes:
+      - ./data:/app/data
+      - ./earthgazer/definitions:/app/earthgazer/definitions:ro
+    environment:
+      - EARTHGAZER__CELERY__BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - EARTHGAZER__CELERY__RESULT_BACKEND=redis://:${REDIS_PASSWORD}@redis:6379/1
+      - EARTHGAZER__DATABASE__DRIVERNAME=postgresql
+      - EARTHGAZER__DATABASE__USERNAME=${DB_USER}
+      - EARTHGAZER__DATABASE__PASSWORD=${DB_PASSWORD}
+      - EARTHGAZER__DATABASE__HOST=db
+      - EARTHGAZER__DATABASE__PORT=5432
+      - EARTHGAZER__DATABASE__DATABASE=${DB_NAME}
+      - EARTHGAZER__GCLOUD__SERVICE_ACCOUNT=${GCLOUD_SERVICE_ACCOUNT}
+      - EARTHGAZER__GCLOUD__BUCKET_NAME=${GCLOUD_BUCKET_NAME}
+    depends_on:
+      - db
+      - redis
+    networks:
+      - earthgazer-net
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+
+  # Flower - Celery monitoring web UI
+  flower:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    command: celery -A earthgazer.celery_app flower --port=5555 --broker=redis://:${REDIS_PASSWORD}@redis:6379/0
+    ports:
+      - "5555:5555"
+    environment:
+      - EARTHGAZER__CELERY__BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - EARTHGAZER__CELERY__RESULT_BACKEND=redis://:${REDIS_PASSWORD}@redis:6379/1
+      - FLOWER_BASIC_AUTH=${FLOWER_USER}:${FLOWER_PASSWORD}
+    depends_on:
+      - redis
+    networks:
+      - earthgazer-net
+
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+
+networks:
+  earthgazer-net:
+    driver: bridge
