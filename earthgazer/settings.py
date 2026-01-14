@@ -69,7 +69,45 @@ class GcloudSettings(BaseSettings):
         return self
 
 
+class CelerySettings(BaseSettings):
+    broker_url: str = "redis://redis:6379/0"
+    result_backend: str = "redis://redis:6379/1"
+    task_serializer: str = "json"
+    result_serializer: str = "json"
+    accept_content: list[str] = ["json"]
+    timezone: str = "UTC"
+    enable_utc: bool = True
+    worker_concurrency: int = 4
+    worker_prefetch_multiplier: int = 2
+    task_acks_late: bool = True
+    task_reject_on_worker_lost: bool = True
+    result_expires: int = 3600  # 1 hour
+
+    @model_validator(mode="after")
+    def validate_urls(self):
+        logging.debug("Validating Celery broker and result backend URLs")
+
+        if not self.broker_url:
+            raise ValueError("Celery broker_url cannot be empty")
+
+        if not self.result_backend:
+            raise ValueError("Celery result_backend cannot be empty")
+
+        # Ensure URLs are properly formatted
+        if not self.broker_url.startswith(("redis://", "rediss://", "amqp://", "amqps://")):
+            raise ValueError(f"Invalid broker_url scheme: {self.broker_url}")
+
+        if not self.result_backend.startswith(("redis://", "rediss://", "db+", "cache+", "rpc://")):
+            raise ValueError(f"Invalid result_backend scheme: {self.result_backend}")
+
+        logging.debug(f"Celery broker URL: {self.broker_url}")
+        logging.debug(f"Celery result backend: {self.result_backend}")
+
+        return self
+
+
 class EarthGazerSettings(BaseSettings):
     database: DatabaseManagerSettings = DatabaseManagerSettings()
     gcloud: GcloudSettings = GcloudSettings()
+    celery: CelerySettings = CelerySettings()
     model_config = SettingsConfigDict(env_file=".env", env_nested_delimiter="__", env_prefix="earthgazer__")
