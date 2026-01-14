@@ -21,6 +21,23 @@ class AtmosphericReferenceLevel(enum.Enum):
     TOA = "TOA"
     BOA = "BOA"
 
+
+class TaskStatus(enum.Enum):
+    PENDING = "PENDING"
+    STARTED = "STARTED"
+    SUCCESS = "SUCCESS"
+    FAILURE = "FAILURE"
+    RETRY = "RETRY"
+    REVOKED = "REVOKED"
+
+
+class ProcessingJobStatus(enum.Enum):
+    QUEUED = "QUEUED"
+    PROCESSING = "PROCESSING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    PARTIAL = "PARTIAL"
+
 class Base(DeclarativeBase):
     def add(self, session):
         session.add(self)
@@ -65,3 +82,42 @@ class CaptureData(Base):
     backup_date: Mapped[str | None] = mapped_column(DateTime(timezone=False), default=None)
     backup_location: Mapped[str | None] = mapped_column(String(500), default=None)
     added: Mapped[str] = mapped_column(DateTime(timezone=False), server_default="now()")
+
+
+class TaskExecution(Base):
+    """Track individual Celery task executions for monitoring and debugging."""
+    __tablename__ = "task_executions"
+    __table_args__ = {"schema": "earthgazer"}
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    task_id: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    task_name: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
+    capture_id: Mapped[int | None] = mapped_column(Integer, index=True, default=None)
+    status: Mapped[str] = mapped_column(Enum(TaskStatus), nullable=False, default=TaskStatus.PENDING)
+    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=False), server_default="now()")
+    started_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=False), default=None)
+    completed_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=False), default=None)
+    duration: Mapped[float | None] = mapped_column(Float, default=None)  # seconds
+    result: Mapped[str | None] = mapped_column(String(1000), default=None)
+    error: Mapped[str | None] = mapped_column(String(2000), default=None)
+    retries: Mapped[int] = mapped_column(Integer, default=0)
+    worker_name: Mapped[str | None] = mapped_column(String(255), default=None)
+
+
+class ProcessingJob(Base):
+    """Track multi-task processing jobs (workflows) for high-level monitoring."""
+    __tablename__ = "processing_jobs"
+    __table_args__ = {"schema": "earthgazer"}
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    job_id: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    job_type: Mapped[str] = mapped_column(String(100), nullable=False)  # e.g., "single_capture", "full_pipeline"
+    capture_id: Mapped[int | None] = mapped_column(Integer, index=True, default=None)
+    status: Mapped[str] = mapped_column(Enum(ProcessingJobStatus), nullable=False, default=ProcessingJobStatus.QUEUED)
+    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=False), server_default="now()")
+    started_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=False), default=None)
+    completed_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=False), default=None)
+    total_tasks: Mapped[int] = mapped_column(Integer, default=0)
+    completed_tasks: Mapped[int] = mapped_column(Integer, default=0)
+    failed_tasks: Mapped[int] = mapped_column(Integer, default=0)
+    metadata: Mapped[str | None] = mapped_column(String(2000), default=None)  # JSON string for additional info
