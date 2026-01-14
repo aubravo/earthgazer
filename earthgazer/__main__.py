@@ -13,6 +13,9 @@ from .settings import EarthGazerSettings
 SETTINGS = EarthGazerSettings()
 GCLOUD_BUCKET = SETTINGS.gcloud.bucket_name
 
+service_account_credentials = service_account.Credentials.from_service_account_info(
+    SETTINGS.gcloud.service_account, scopes=["https://www.googleapis.com/auth/cloud-platform"])
+
 # Load definitions
 PLATFORMS = json.load(Path.open("earthgazer/definitions/platforms.json"))
 COMPOSITES = json.load(Path.open("earthgazer/definitions/composites.json"))
@@ -66,10 +69,6 @@ def check_for_new_images():
             queries.append(query)
 
     print(f"Total queries generated: {len(queries)}")
-
-
-    service_account_credentials = service_account.Credentials.from_service_account_info(
-        SETTINGS.gcloud.service_account, scopes=["https://www.googleapis.com/auth/cloud-platform"])
 
     bigquery_client = bigquery.Client(credentials=service_account_credentials)
 
