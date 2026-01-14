@@ -12,6 +12,9 @@ from earthgazer.settings import EarthGazerSettings
 
 logger = logging.getLogger(__name__)
 
+# Import monitoring to activate signal handlers
+import earthgazer.monitoring  # noqa: F401
+
 # Initialize settings
 settings = EarthGazerSettings()
 
