@@ -59,11 +59,16 @@ def check_for_new_images(
     # Build queries
     queries = []
     for location in locations:
-        logger.info(f"Processing location: {location.id} - {location.name} ({location.latitude}, {location.longitude})")
+        logger.info(
+            f"Processing location: {location.id} - {location.name} "
+            f"(bounds: {location.min_lon}, {location.min_lat}, {location.max_lon}, {location.max_lat})"
+        )
 
         for platform_name, platform in platforms.items():
             logger.debug(f"Building query for platform: {platform_name}")
 
+            # Query for images that overlap with the location's bounding box
+            # An image overlaps if its bounds intersect with the location bounds
             query = f"""SELECT
                 {platform['main_id']} AS main_id,
                 {platform['secondary_id']} AS secondary_id,
@@ -85,10 +90,10 @@ def check_for_new_images(
                 WHERE
                 {platform['sensing_time']} >= '{location.from_date}' AND
                 {platform['sensing_time']} <= '{location.to_date}' AND
-                {platform['north_lat']} >= {location.latitude} AND
-                {platform['south_lat']} <= {location.latitude} AND
-                {platform['west_lon']} <= {location.longitude} AND
-                {platform['east_lon']} >= {location.longitude} AND
+                {platform['north_lat']} >= {location.min_lat} AND
+                {platform['south_lat']} <= {location.max_lat} AND
+                {platform['west_lon']} <= {location.max_lon} AND
+                {platform['east_lon']} >= {location.min_lon} AND
                 {platform['base_url']} IS NOT NULL
             """
             queries.append(query)

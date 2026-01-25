@@ -27,6 +27,26 @@ from earthgazer.tasks import (
 logger = logging.getLogger(__name__)
 
 
+def get_location_bounds(location_id: int) -> Tuple[float, float, float, float]:
+    """
+    Get the bounds for a specific location.
+
+    Args:
+        location_id: Location ID to get bounds for
+
+    Returns:
+        Tuple of (min_lon, min_lat, max_lon, max_lat)
+    """
+    settings = EarthGazerSettings()
+    engine = create_engine(settings.database.url, echo=False)
+
+    with Session(engine) as session:
+        location = session.query(Location).where(Location.id == location_id).first()
+        if location is None:
+            raise ValueError(f"Location {location_id} not found")
+        return location.bounds
+
+
 def process_single_capture_workflow(
     capture_id: int,
     bands: List[str] = None,
@@ -282,4 +302,73 @@ def reprocess_existing_captures_workflow(
         )
     else:
         logger.warning("No captures found to reprocess")
+        return None
+
+
+def process_location_captures_workflow(
+    location_id: int,
+    bands: List[str] = None,
+    mission_filter: Optional[str] = None,
+    limit: Optional[int] = None,
+    run_temporal_analysis: bool = True
+):
+    """
+    Workflow to process all backed-up captures for a specific location.
+
+    Uses the location's region bounds for cropping automatically.
+
+    Pipeline:
+    1. Get location bounds from database
+    2. Find all backed-up captures
+    3. Process captures using location bounds
+    4. Optionally run temporal analysis
+
+    Args:
+        location_id: Location ID to process captures for
+        bands: List of band identifiers (default: ["B02", "B03", "B04", "B08"])
+        mission_filter: Optional filter by mission (e.g., "SENTINEL-2A")
+        limit: Optional limit on number of captures to process
+        run_temporal_analysis: Whether to run temporal analysis after processing
+
+    Returns:
+        AsyncResult for the workflow
+    """
+    if bands is None:
+        bands = ["B02", "B03", "B04", "B08"]
+
+    logger.info(f"Starting workflow for location {location_id}")
+
+    # Get location bounds
+    bounds = get_location_bounds(location_id)
+    logger.info(f"Using location bounds: {bounds}")
+
+    # Get backed-up captures
+    settings = EarthGazerSettings()
+    engine = create_engine(settings.database.url, echo=False)
+
+    with Session(engine) as session:
+        query = session.query(CaptureData).where(CaptureData.backed_up == True)
+
+        if mission_filter:
+            query = query.where(CaptureData.mission_id == mission_filter)
+
+        query = query.order_by(CaptureData.sensing_time.desc())
+
+        if limit:
+            query = query.limit(limit)
+
+        captures = query.all()
+        capture_ids = [c.id for c in captures]
+
+    logger.info(f"Found {len(capture_ids)} backed-up captures to process")
+
+    if capture_ids:
+        return process_multiple_captures_workflow(
+            capture_ids,
+            bands,
+            bounds,
+            run_temporal_analysis=run_temporal_analysis
+        )
+    else:
+        logger.warning("No captures found to process for location")
         return None

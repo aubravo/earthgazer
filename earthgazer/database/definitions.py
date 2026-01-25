@@ -50,12 +50,31 @@ class Location(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
-    longitude: Mapped[float] = mapped_column(Float, nullable=False)
-    latitude: Mapped[float] = mapped_column(Float, nullable=False)
+    # Region boundary coordinates (bounding box)
+    min_lon: Mapped[float] = mapped_column(Float, nullable=False)  # West boundary
+    min_lat: Mapped[float] = mapped_column(Float, nullable=False)  # South boundary
+    max_lon: Mapped[float] = mapped_column(Float, nullable=False)  # East boundary
+    max_lat: Mapped[float] = mapped_column(Float, nullable=False)  # North boundary
+    # Legacy point coordinates (deprecated, kept for backwards compatibility)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     from_date: Mapped[str] = mapped_column(DateTime(timezone=False), server_default="now()")
     to_date: Mapped[str] = mapped_column(DateTime(timezone=False), server_default="now()")
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     added: Mapped[str] = mapped_column(DateTime(timezone=False), server_default="now()")
+
+    @property
+    def bounds(self) -> tuple[float, float, float, float]:
+        """Return bounds as (min_lon, min_lat, max_lon, max_lat) tuple."""
+        return (self.min_lon, self.min_lat, self.max_lon, self.max_lat)
+
+    @property
+    def center(self) -> tuple[float, float]:
+        """Return center point as (longitude, latitude) tuple."""
+        return (
+            (self.min_lon + self.max_lon) / 2,
+            (self.min_lat + self.max_lat) / 2
+        )
 
 class CaptureData(Base):
     __tablename__ = "capture_data"
