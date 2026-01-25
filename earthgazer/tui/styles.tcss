@@ -1,0 +1,152 @@
+/* EarthGazer TUI Styles */
+
+Screen {
+    background: $surface;
+}
+
+/* Dashboard styles */
+#dashboard-container {
+    layout: grid;
+    grid-size: 2 2;
+    grid-gutter: 1;
+    padding: 1;
+}
+
+.dashboard-panel {
+    border: solid $primary;
+    padding: 1;
+    height: 100%;
+}
+
+.panel-title {
+    text-style: bold;
+    color: $primary;
+    padding-bottom: 1;
+}
+
+/* Status indicators */
+.status-ok {
+    color: $success;
+}
+
+.status-error {
+    color: $error;
+}
+
+.status-pending {
+    color: $warning;
+}
+
+/* Tables */
+DataTable {
+    height: 100%;
+}
+
+DataTable > .datatable--header {
+    text-style: bold;
+    background: $primary-darken-2;
+}
+
+/* Buttons */
+Button {
+    margin: 1;
+}
+
+Button.primary {
+    background: $primary;
+}
+
+Button.success {
+    background: $success;
+}
+
+Button.warning {
+    background: $warning;
+}
+
+/* Input fields */
+Input {
+    margin: 1 0;
+}
+
+/* Log panel */
+#log-panel {
+    height: 100%;
+    border: solid $primary;
+}
+
+RichLog {
+    height: 100%;
+    padding: 1;
+}
+
+/* Workflow screen */
+#workflow-options {
+    layout: horizontal;
+    height: auto;
+    padding: 1;
+}
+
+#workflow-params {
+    padding: 1;
+    border: solid $primary;
+    height: auto;
+}
+
+#workflow-status {
+    height: 1fr;
+    border: solid $primary;
+    padding: 1;
+}
+
+/* Monitoring screen */
+#monitoring-container {
+    layout: vertical;
+    padding: 1;
+}
+
+#task-table {
+    height: 2fr;
+    border: solid $primary;
+}
+
+#worker-status {
+    height: 1fr;
+    border: solid $primary;
+    padding: 1;
+}
+
+/* Captures screen */
+#captures-container {
+    layout: vertical;
+    padding: 1;
+}
+
+#capture-filters {
+    height: auto;
+    padding: 1;
+}
+
+#capture-table {
+    height: 1fr;
+    border: solid $primary;
+}
+
+#capture-actions {
+    height: auto;
+    padding: 1;
+    layout: horizontal;
+}
+
+/* Modal styles */
+ModalScreen {
+    align: center middle;
+}
+
+#modal-dialog {
+    width: 60;
+    height: auto;
+    border: solid $primary;
+    background: $surface;
+    padding: 1 2;
+}
