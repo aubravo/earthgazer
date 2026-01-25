@@ -197,8 +197,22 @@ def stack_and_crop_task(
 
         # Store temporarily for next task (in production, could use shared storage)
         import numpy as np
+        import json
         temp_path = f"data/processed/stacked_{capture_id}.npz"
-        np.savez_compressed(temp_path, stacked=stacked, **meta)
+
+        # Serialize metadata properly for npz storage
+        # Transform and CRS don't serialize well, so convert to strings
+        meta_serialized = {
+            'driver': meta.get('driver', 'GTiff'),
+            'dtype': str(meta.get('dtype', 'float32')),
+            'width': meta.get('width'),
+            'height': meta.get('height'),
+            'count': meta.get('count', 1),
+            'crs': meta['crs'].to_string() if meta.get('crs') else None,
+            'transform': json.dumps(list(meta['transform'])) if meta.get('transform') else None,
+            'nodata': meta.get('nodata'),
+        }
+        np.savez_compressed(temp_path, stacked=stacked, meta_json=json.dumps(meta_serialized))
 
         logger.info(f"Task {self.request.id}: Stacked shape {stacked.shape}, saved to {temp_path}")
 
@@ -240,15 +254,28 @@ def compute_ndvi_task(
     logger.info(f"Task {self.request.id}: Computing NDVI for capture {capture_id}")
 
     try:
+        import json
         import numpy as np
+        from rasterio.crs import CRS
+        from rasterio.transform import Affine
 
         # Load stacked data
         temp_path = f"data/processed/stacked_{capture_id}.npz"
         data = np.load(temp_path, allow_pickle=True)
         stacked = data['stacked']
 
-        # Reconstruct metadata
-        meta = {k: data[k].item() if data[k].shape == () else data[k] for k in data.files if k != 'stacked'}
+        # Reconstruct metadata from JSON
+        meta_json = json.loads(str(data['meta_json']))
+        meta = {
+            'driver': meta_json.get('driver', 'GTiff'),
+            'dtype': meta_json.get('dtype', 'float32'),
+            'width': meta_json.get('width'),
+            'height': meta_json.get('height'),
+            'count': 1,  # NDVI is single band
+            'crs': CRS.from_string(meta_json['crs']) if meta_json.get('crs') else None,
+            'transform': Affine(*json.loads(meta_json['transform'])[:6]) if meta_json.get('transform') else None,
+            'nodata': meta_json.get('nodata'),
+        }
 
         # Compute NDVI
         ndvi = features.compute_ndvi_from_stack(stacked, bands)
@@ -291,15 +318,28 @@ def generate_rgb_task(
     logger.info(f"Task {self.request.id}: Generating RGB for capture {capture_id}")
 
     try:
+        import json
         import numpy as np
+        from rasterio.crs import CRS
+        from rasterio.transform import Affine
 
         # Load stacked data
         temp_path = f"data/processed/stacked_{capture_id}.npz"
         data = np.load(temp_path, allow_pickle=True)
         stacked = data['stacked']
 
-        # Reconstruct metadata
-        meta = {k: data[k].item() if data[k].shape == () else data[k] for k in data.files if k != 'stacked'}
+        # Reconstruct metadata from JSON
+        meta_json = json.loads(str(data['meta_json']))
+        meta = {
+            'driver': meta_json.get('driver', 'GTiff'),
+            'dtype': meta_json.get('dtype', 'float32'),
+            'width': meta_json.get('width'),
+            'height': meta_json.get('height'),
+            'count': 3,  # RGB is 3 bands
+            'crs': CRS.from_string(meta_json['crs']) if meta_json.get('crs') else None,
+            'transform': Affine(*json.loads(meta_json['transform'])[:6]) if meta_json.get('transform') else None,
+            'nodata': meta_json.get('nodata'),
+        }
 
         # Generate RGB
         rgb = features.create_rgb_from_stack(stacked, bands)
