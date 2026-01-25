@@ -49,78 +49,85 @@ class WorkflowsScreen(Screen):
         )
         yield Footer()
 
-    def on_mount(self) -> None:
-        self.show_discover_params()
+    async def on_mount(self) -> None:
+        await self.show_discover_params()
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
+    async def on_button_pressed(self, event: Button.Pressed) -> None:
         button_id = event.button.id
 
         if button_id == "wf-discover":
             self.selected_workflow = "discover"
-            self.show_discover_params()
+            await self.show_discover_params()
         elif button_id == "wf-process":
             self.selected_workflow = "process"
-            self.show_process_params()
+            await self.show_process_params()
         elif button_id == "wf-pipeline":
             self.selected_workflow = "pipeline"
-            self.show_pipeline_params()
-        elif button_id == "run-workflow":
-            self.run_selected_workflow()
+            await self.show_pipeline_params()
+        elif button_id and button_id.startswith("run-"):
+            await self.run_selected_workflow()
 
-    def show_discover_params(self) -> None:
+    async def show_discover_params(self) -> None:
         """Show parameters for discover workflow."""
         params = self.query_one("#workflow-params", Container)
-        params.remove_children()
-        params.mount(
+        await params.remove_children()
+        await params.mount(
             Static("Discover new satellite images from BigQuery"),
             Static(""),
             Static("This will search for new Sentinel-2 imagery for all active locations."),
             Static(""),
-            Button("Run Discovery", id="run-workflow", variant="success"),
+            Button("Run Discovery", id="run-discover", variant="success"),
         )
 
-    def show_process_params(self) -> None:
+    async def show_process_params(self) -> None:
         """Show parameters for process workflow."""
         params = self.query_one("#workflow-params", Container)
-        params.remove_children()
+        await params.remove_children()
 
         # Get backed-up captures for selection
         captures = get_captures(backed_up_only=True, limit=20)
 
-        capture_options = [(f"{c['id']}: {c['sensing_time'].strftime('%Y-%m-%d') if c['sensing_time'] else 'N/A'} ({c['cloud_cover']:.1f}% cloud)", str(c['id'])) for c in captures]
+        capture_options = [
+            (
+                f"{c['id']}: {c['sensing_time'].strftime('%Y-%m-%d') if c['sensing_time'] else 'N/A'} "
+                f"({c['cloud_cover']:.1f}% cloud)",
+                str(c['id'])
+            )
+            for c in captures
+        ]
 
         if not capture_options:
             capture_options = [("No backed-up captures available", "")]
 
-        params.mount(
+        await params.mount(
             Static("Process a single backed-up capture"),
             Static(""),
             Label("Select Capture:"),
-            Select(capture_options, id="capture-select", allow_blank=False),
+            Select(capture_options, id="process-capture-select", allow_blank=False),
             Static(""),
             Label("Bands (comma-separated):"),
-            Input(value="B02,B03,B04,B08", id="bands-input"),
+            Input(value="B02,B03,B04,B08", id="process-bands-input"),
             Static(""),
             Label("Bounds (min_lon,min_lat,max_lon,max_lat) - leave empty for full:"),
-            Input(value="-98.898926,18.755649,-98.399734,19.282628", id="bounds-input", placeholder="Optional bounds"),
+            Input(value="-98.898926,18.755649,-98.399734,19.282628", id="process-bounds-input", placeholder="Optional bounds"),
             Static(""),
-            Button("Run Processing", id="run-workflow", variant="success"),
+            Button("Run Processing", id="run-process", variant="success"),
         )
 
-    def show_pipeline_params(self) -> None:
+    async def show_pipeline_params(self) -> None:
         """Show parameters for full pipeline workflow."""
         params = self.query_one("#workflow-params", Container)
-        params.remove_children()
-        params.mount(
+        await params.remove_children()
+        await params.mount(
             Static("Run full pipeline: Discovery → Backup → Processing"),
             Static(""),
             Static("[yellow]Warning:[/yellow] This will discover new images, back them up,"),
             Static("and process all backed-up captures. This may take a while."),
             Static(""),
-            Button("Run Full Pipeline", id="run-workflow", variant="warning"),
+            Button("Run Full Pipeline", id="run-pipeline", variant="warning"),
         )
 
-    def run_selected_workflow(self) -> None:
+    async def run_selected_workflow(self) -> None:
         """Execute the selected workflow."""
         log = self.query_one("#workflow-log", RichLog)
 
@@ -134,9 +141,9 @@ class WorkflowsScreen(Screen):
                 self.set_timer(2.0, self.check_task_status)
 
             elif self.selected_workflow == "process":
-                capture_select = self.query_one("#capture-select", Select)
-                bands_input = self.query_one("#bands-input", Input)
-                bounds_input = self.query_one("#bounds-input", Input)
+                capture_select = self.query_one("#process-capture-select", Select)
+                bands_input = self.query_one("#process-bands-input", Input)
+                bounds_input = self.query_one("#process-bounds-input", Input)
 
                 if not capture_select.value:
                     log.write("[red]Please select a capture to process[/red]")
