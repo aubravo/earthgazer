@@ -1,0 +1,38 @@
+apiVersion: v2
+name: earthgazer
+description: A Helm chart for EarthGazer - Satellite image processing and analysis platform
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+
+keywords:
+  - satellite
+  - geospatial
+  - celery
+  - sentinel
+  - landsat
+  - ndvi
+  - remote-sensing
+
+maintainers:
+  - name: Alvaro Bravo
+    email: alvaroubravo@mxdata.dev
+
+# Dependencies - using Bitnami charts for PostgreSQL and Redis
+dependencies:
+  - name: postgresql
+    version: 12.x.x
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled
+    tags:
+      - earthgazer-database
+  - name: redis
+    version: 17.x.x
+    repository: https://charts.bitnami.com/bitnami
+    condition: redis.enabled
+    tags:
+      - earthgazer-cache
+
+annotations:
+  category: BigData
+  licenses: Apache-2.0

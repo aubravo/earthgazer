@@ -1,0 +1,139 @@
+# Development values for earthgazer
+# Override default values for local/development deployment
+
+## Docker image settings
+image:
+  registry: "docker.io"
+  repository: earthgazer/earthgazer
+  tag: "latest"  # Use latest for dev
+  pullPolicy: Always
+
+## Data persistence - smaller for development
+persistence:
+  enabled: true
+  storageClass: "standard"  # Use default storage class
+  accessMode: ReadWriteMany
+  size: 10Gi  # Smaller size for dev
+  annotations: {}
+
+## Google Cloud configuration
+gcloud:
+  serviceAccount: ""
+  bucketName: "dev-earthgazer-bucket"
+
+## PostgreSQL development settings
+postgresql:
+  enabled: true
+  auth:
+    username: earthgazer
+    password: "devpassword"  # Simple password for dev
+    database: earthgazer_dev
+    # existingSecret: ""  # Don't use existing secret in dev
+
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: "standard"
+
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+
+    extendedConfiguration: |-
+      max_connections = 50
+      shared_buffers = 128MB
+      effective_cache_size = 512MB
+      work_mem = 8MB
+
+## Redis development settings
+redis:
+  enabled: true
+  auth:
+    enabled: true
+    password: "devpassword"
+    # existingSecret: ""
+
+  master:
+    persistence:
+      enabled: true
+      size: 1Gi
+
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+## Workers development configuration - minimal resources
+workers:
+  io:
+    enabled: true
+    replicaCount: 1
+    concurrency: 4
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+    autoscaling:
+      enabled: false  # Disable autoscaling in dev
+
+  cpu:
+    enabled: true
+    replicaCount: 1
+    concurrency: 2
+    resources:
+      requests:
+        cpu: 1000m
+        memory: 2Gi
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+    autoscaling:
+      enabled: false
+
+  default:
+    enabled: true
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+## Flower monitoring - simple setup for dev
+flower:
+  enabled: true
+  auth:
+    username: admin
+    password: "devpassword"
+    # existingSecret: ""
+
+  ingress:
+    enabled: false  # Disable ingress in dev, use port-forward instead
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+## Network policy - disabled for easier development
+networkPolicy:
+  enabled: false
+
+## Pod annotations - minimal for dev
+podAnnotations: {}

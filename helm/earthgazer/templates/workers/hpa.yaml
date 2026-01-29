@@ -1,0 +1,64 @@
+{{- if .Values.workers.io.autoscaling.enabled }}
+---
+apiVersion: {{ include "earthgazer.hpa.apiVersion" . }}
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "earthgazer.fullname" . }}-worker-io
+  labels:
+    {{- include "earthgazer.labels" . | nindent 4 }}
+    component: worker-io
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "earthgazer.fullname" . }}-worker-io
+  minReplicas: {{ .Values.workers.io.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.workers.io.autoscaling.maxReplicas }}
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.workers.io.autoscaling.targetCPUUtilizationPercentage }}
+  {{- if .Values.workers.io.autoscaling.targetMemoryUtilizationPercentage }}
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.workers.io.autoscaling.targetMemoryUtilizationPercentage }}
+  {{- end }}
+{{- end }}
+{{- if .Values.workers.cpu.autoscaling.enabled }}
+---
+apiVersion: {{ include "earthgazer.hpa.apiVersion" . }}
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "earthgazer.fullname" . }}-worker-cpu
+  labels:
+    {{- include "earthgazer.labels" . | nindent 4 }}
+    component: worker-cpu
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "earthgazer.fullname" . }}-worker-cpu
+  minReplicas: {{ .Values.workers.cpu.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.workers.cpu.autoscaling.maxReplicas }}
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.workers.cpu.autoscaling.targetCPUUtilizationPercentage }}
+  {{- if .Values.workers.cpu.autoscaling.targetMemoryUtilizationPercentage }}
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.workers.cpu.autoscaling.targetMemoryUtilizationPercentage }}
+  {{- end }}
+{{- end }}

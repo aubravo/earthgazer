@@ -1,0 +1,375 @@
+# Default values for earthgazer
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+## Global Docker image settings
+image:
+  registry: ""
+  repository: earthgazer/earthgazer
+  tag: "latest"
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+    # - name: docker-registry-secret
+
+## Image pull policy for all containers
+imagePullPolicy: IfNotPresent
+
+## String to partially override earthgazer.fullname template (will maintain the release name)
+nameOverride: ""
+
+## String to fully override earthgazer.fullname template
+fullnameOverride: ""
+
+## Service Account
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+## Pod Security Context
+podSecurityContext:
+  fsGroup: 1000
+  runAsNonRoot: true
+  runAsUser: 1000
+
+## Container Security Context
+securityContext:
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 1000
+
+## Data persistence configuration
+persistence:
+  ## Enable persistence using PVC
+  enabled: true
+
+  ## Storage class for PVC
+  ## If undefined or set to null, uses the default StorageClass
+  ## For multi-worker access, use a StorageClass with ReadWriteMany support
+  ## Examples: nfs, cephfs, aws-efs, azure-file, glusterfs
+  storageClass: ""
+
+  ## Access mode - IMPORTANT: Must support multiple pods accessing same volume
+  ## ReadWriteMany - Required for multiple Celery workers
+  ## ReadWriteOnce - Only if using node affinity to keep all workers on same node
+  accessMode: ReadWriteMany
+
+  ## Volume size for satellite imagery data
+  size: 500Gi
+
+  ## Use existing PersistentVolumeClaim
+  existingClaim: ""
+
+  ## Annotations for PVC
+  annotations: {}
+
+  ## Selector to match specific PV
+  selector: {}
+  # matchLabels:
+  #   app: earthgazer
+
+## Google Cloud configuration
+gcloud:
+  ## Base64-encoded service account JSON
+  ## To encode: base64 -w0 service-account.json
+  serviceAccount: ""
+
+  ## GCS bucket name for storing backups
+  bucketName: ""
+
+  ## Use existing secret for credentials (overrides serviceAccount)
+  existingSecret: ""
+  existingSecretKey: "service-account.json"
+
+## PostgreSQL configuration (using Bitnami chart)
+postgresql:
+  enabled: true
+  auth:
+    username: earthgazer
+    password: changeme_password
+    database: earthgazer_prod
+    existingSecret: ""
+
+  primary:
+    persistence:
+      enabled: true
+      size: 50Gi
+      storageClass: ""
+
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+
+    ## PostgreSQL configuration
+    extendedConfiguration: |
+      max_connections = 200
+      shared_buffers = 256MB
+      effective_cache_size = 1GB
+      work_mem = 16MB
+      maintenance_work_mem = 256MB
+
+## Redis configuration (using Bitnami chart)
+redis:
+  enabled: true
+  auth:
+    enabled: true
+    password: changeme_redis
+    existingSecret: ""
+
+  master:
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: ""
+
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+
+  replica:
+    replicaCount: 0
+
+## Main application deployment
+app:
+  enabled: true
+  replicaCount: 1
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+
+  ## Node selector
+  nodeSelector: {}
+
+  ## Tolerations
+  tolerations: []
+
+  ## Affinity
+  affinity: {}
+
+## Celery Workers configuration
+workers:
+  ## I/O Worker - optimized for download/upload tasks
+  io:
+    enabled: true
+    replicaCount: 2
+
+    ## Celery configuration
+    queue: io_queue
+    concurrency: 8
+    maxTasksPerChild: 50
+
+    ## Resource requests and limits
+    resources:
+      requests:
+        cpu: 1000m
+        memory: 2Gi
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+
+    ## Autoscaling configuration
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+      targetMemoryUtilizationPercentage: 80
+
+    ## Node selector
+    nodeSelector: {}
+
+    ## Tolerations
+    tolerations: []
+
+    ## Affinity - prefer to schedule on different nodes
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+              - key: component
+                operator: In
+                values:
+                - worker-io
+            topologyKey: kubernetes.io/hostname
+
+  ## CPU Worker - optimized for computation tasks
+  cpu:
+    enabled: true
+    replicaCount: 3
+
+    ## Celery configuration
+    queue: cpu_queue
+    concurrency: 4
+    maxTasksPerChild: 20
+
+    ## Resource requests and limits
+    resources:
+      requests:
+        cpu: 2000m
+        memory: 4Gi
+      limits:
+        cpu: 4000m
+        memory: 8Gi
+
+    ## Autoscaling configuration
+    autoscaling:
+      enabled: true
+      minReplicas: 3
+      maxReplicas: 20
+      targetCPUUtilizationPercentage: 80
+      targetMemoryUtilizationPercentage: 85
+
+    ## Node selector - prefer CPU-optimized nodes
+    nodeSelector: {}
+      # node.kubernetes.io/instance-type: c5.2xlarge
+
+    ## Tolerations
+    tolerations: []
+
+    ## Affinity
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+              - key: component
+                operator: In
+                values:
+                - worker-cpu
+            topologyKey: kubernetes.io/hostname
+
+  ## Default Worker - handles miscellaneous tasks
+  default:
+    enabled: true
+    replicaCount: 1
+
+    ## Celery configuration
+    queue: default
+    concurrency: 4
+    maxTasksPerChild: 100
+
+    ## Resource requests and limits
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+
+    ## Autoscaling configuration
+    autoscaling:
+      enabled: false
+
+    ## Node selector
+    nodeSelector: {}
+
+    ## Tolerations
+    tolerations: []
+
+    ## Affinity
+    affinity: {}
+
+## Flower - Celery monitoring web UI
+flower:
+  enabled: true
+  replicaCount: 1
+
+  ## Basic authentication
+  auth:
+    username: admin
+    password: changeme_flower
+    existingSecret: ""
+
+  ## Service configuration
+  service:
+    type: ClusterIP
+    port: 5555
+
+  ## Ingress configuration
+  ingress:
+    enabled: false
+    className: nginx
+    annotations: {}
+      # cert-manager.io/cluster-issuer: letsencrypt-prod
+      # nginx.ingress.kubernetes.io/auth-type: basic
+      # nginx.ingress.kubernetes.io/auth-secret: flower-basic-auth
+    hosts:
+      - host: flower.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls: []
+      # - secretName: flower-tls
+      #   hosts:
+      #     - flower.example.com
+
+  ## Resources
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  ## Node selector
+  nodeSelector: {}
+
+  ## Tolerations
+  tolerations: []
+
+  ## Affinity
+  affinity: {}
+
+## Network Policy
+networkPolicy:
+  enabled: false
+  policyTypes:
+    - Ingress
+    - Egress
+
+  ## Ingress rules
+  ingress: []
+
+  ## Egress rules - allow all by default
+  egress:
+    - {}
+
+## Additional environment variables
+extraEnv: []
+  # - name: CUSTOM_VAR
+  #   value: "custom_value"
+
+## Additional volumes
+extraVolumes: []
+
+## Additional volume mounts
+extraVolumeMounts: []
+
+## Pod annotations
+podAnnotations: {}
+
+## Pod labels
+podLabels: {}

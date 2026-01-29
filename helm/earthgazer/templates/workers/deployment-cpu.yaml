@@ -1,0 +1,104 @@
+{{- if .Values.workers.cpu.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "earthgazer.fullname" . }}-worker-cpu
+  labels:
+    {{- include "earthgazer.labels" . | nindent 4 }}
+    component: worker-cpu
+spec:
+  {{- if not .Values.workers.cpu.autoscaling.enabled }}
+  replicas: {{ .Values.workers.cpu.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "earthgazer.selectorLabels" . | nindent 6 }}
+      component: worker-cpu
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "earthgazer.selectorLabels" . | nindent 8 }}
+        component: worker-cpu
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "earthgazer.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+      - name: worker
+        securityContext:
+          {{- toYaml .Values.securityContext | nindent 10 }}
+        image: {{ include "earthgazer.image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command:
+          - celery
+          - -A
+          - earthgazer.celery_app
+          - worker
+          - --loglevel=info
+          - -Q
+          - {{ .Values.workers.cpu.queue }}
+          - --concurrency={{ .Values.workers.cpu.concurrency }}
+          - --max-tasks-per-child={{ .Values.workers.cpu.maxTasksPerChild }}
+          - --hostname=cpu-worker@%h
+        envFrom:
+          - configMapRef:
+              name: {{ include "earthgazer.fullname" . }}-config
+        env:
+          - name: EARTHGAZER__DATABASE__PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ include "earthgazer.postgresql.secretName" . }}
+                key: password
+          - name: EARTHGAZER__GCLOUD__SERVICE_ACCOUNT
+            valueFrom:
+              secretKeyRef:
+                name: {{ if .Values.gcloud.existingSecret }}{{ .Values.gcloud.existingSecret }}{{ else }}{{ include "earthgazer.fullname" . }}-gcloud{{ end }}
+                key: {{ .Values.gcloud.existingSecretKey | default "service-account.json" }}
+          {{- with .Values.extraEnv }}
+          {{- toYaml . | nindent 10 }}
+          {{- end }}
+        volumeMounts:
+          - name: data
+            mountPath: /app/data
+          {{- with .Values.extraVolumeMounts }}
+          {{- toYaml . | nindent 10 }}
+          {{- end }}
+        resources:
+          {{- toYaml .Values.workers.cpu.resources | nindent 10 }}
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "earthgazer.dataVolumeName" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.workers.cpu.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.workers.cpu.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.workers.cpu.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

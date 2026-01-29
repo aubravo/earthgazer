@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "earthgazer.fullname" . }}-config
+  labels:
+    {{- include "earthgazer.labels" . | nindent 4 }}
+data:
+  # Database configuration
+  EARTHGAZER__DATABASE__DRIVERNAME: "postgresql"
+  EARTHGAZER__DATABASE__HOST: {{ include "earthgazer.postgresql.host" . | quote }}
+  EARTHGAZER__DATABASE__PORT: {{ include "earthgazer.postgresql.port" . | quote }}
+  EARTHGAZER__DATABASE__DATABASE: {{ include "earthgazer.postgresql.database" . | quote }}
+  EARTHGAZER__DATABASE__USERNAME: {{ include "earthgazer.postgresql.username" . | quote }}
+
+  # Redis/Celery configuration
+  EARTHGAZER__CELERY__BROKER_URL: {{ printf "redis://:%s@%s:%s/0" .Values.redis.auth.password (include "earthgazer.redis.host" .) (include "earthgazer.redis.port" .) | quote }}
+  EARTHGAZER__CELERY__RESULT_BACKEND: {{ printf "redis://:%s@%s:%s/1" .Values.redis.auth.password (include "earthgazer.redis.host" .) (include "earthgazer.redis.port" .) | quote }}
+
+  # Google Cloud configuration
+  EARTHGAZER__GCLOUD__BUCKET_NAME: {{ .Values.gcloud.bucketName | quote }}

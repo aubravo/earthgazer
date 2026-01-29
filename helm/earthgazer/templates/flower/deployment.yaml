@@ -1,0 +1,92 @@
+{{- if .Values.flower.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "earthgazer.fullname" . }}-flower
+  labels:
+    {{- include "earthgazer.labels" . | nindent 4 }}
+    component: flower
+spec:
+  replicas: {{ .Values.flower.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "earthgazer.selectorLabels" . | nindent 6 }}
+      component: flower
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "earthgazer.selectorLabels" . | nindent 8 }}
+        component: flower
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "earthgazer.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+      - name: flower
+        securityContext:
+          {{- toYaml .Values.securityContext | nindent 10 }}
+        image: {{ include "earthgazer.image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command:
+          - celery
+          - -A
+          - earthgazer.celery_app
+          - flower
+          - --port=5555
+          - --broker=$(EARTHGAZER__CELERY__BROKER_URL)
+        ports:
+          - name: http
+            containerPort: 5555
+            protocol: TCP
+        envFrom:
+          - configMapRef:
+              name: {{ include "earthgazer.fullname" . }}-config
+        env:
+          - name: FLOWER_BASIC_AUTH
+            valueFrom:
+              secretKeyRef:
+                name: {{ if .Values.flower.auth.existingSecret }}{{ .Values.flower.auth.existingSecret }}{{ else }}{{ include "earthgazer.fullname" . }}-flower{{ end }}
+                key: username
+          {{- with .Values.extraEnv }}
+          {{- toYaml . | nindent 10 }}
+          {{- end }}
+        livenessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        resources:
+          {{- toYaml .Values.flower.resources | nindent 10 }}
+      {{- with .Values.flower.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.flower.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.flower.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

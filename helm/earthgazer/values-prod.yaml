@@ -1,0 +1,192 @@
+# Production values for earthgazer
+# Override default values for production deployment
+
+## Docker image settings
+image:
+  registry: "your-registry.io"
+  repository: earthgazer/earthgazer
+  tag: "1.0.0"  # Use specific version in production
+  pullPolicy: IfNotPresent
+
+## Data persistence - IMPORTANT for production
+persistence:
+  enabled: true
+  storageClass: "nfs-client"  # Use your ReadWriteMany storage class
+  accessMode: ReadWriteMany
+  size: 1Ti  # Adjust based on needs
+  annotations:
+    backup: "enabled"
+
+## Google Cloud configuration
+gcloud:
+  # Set via --set or use existing secret
+  serviceAccount: ""
+  bucketName: "prod-earthgazer-bucket"
+  # existingSecret: "gcloud-credentials"
+
+## PostgreSQL production settings
+postgresql:
+  enabled: true
+  auth:
+    username: earthgazer
+    password: ""  # Set via --set or use existingSecret
+    database: earthgazer_prod
+    existingSecret: "postgresql-credentials"
+
+  primary:
+    persistence:
+      enabled: true
+      size: 200Gi
+      storageClass: "gp3"  # Fast SSD for database
+
+    resources:
+      requests:
+        cpu: 2000m
+        memory: 4Gi
+      limits:
+        cpu: 4000m
+        memory: 8Gi
+
+    extendedConfiguration: |
+      max_connections = 300
+      shared_buffers = 2GB
+      effective_cache_size = 6GB
+      work_mem = 32MB
+      maintenance_work_mem = 1GB
+      checkpoint_completion_target = 0.9
+      wal_buffers = 16MB
+      random_page_cost = 1.1
+
+## Redis production settings
+redis:
+  enabled: true
+  auth:
+    enabled: true
+    password: ""  # Set via --set or use existingSecret
+    existingSecret: "redis-credentials"
+
+  master:
+    persistence:
+      enabled: true
+      size: 50Gi
+
+    resources:
+      requests:
+        cpu: 500m
+        memory: 2Gi
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+
+## Workers production configuration
+workers:
+  io:
+    enabled: true
+    replicaCount: 5
+    concurrency: 8
+    resources:
+      requests:
+        cpu: 2000m
+        memory: 4Gi
+      limits:
+        cpu: 4000m
+        memory: 8Gi
+    autoscaling:
+      enabled: true
+      minReplicas: 5
+      maxReplicas: 20
+      targetCPUUtilizationPercentage: 70
+
+  cpu:
+    enabled: true
+    replicaCount: 10
+    concurrency: 4
+    resources:
+      requests:
+        cpu: 4000m
+        memory: 8Gi
+      limits:
+        cpu: 8000m
+        memory: 16Gi
+    autoscaling:
+      enabled: true
+      minReplicas: 10
+      maxReplicas: 50
+      targetCPUUtilizationPercentage: 80
+    # nodeSelector:
+    #   node.kubernetes.io/instance-type: c5.4xlarge
+
+  default:
+    enabled: true
+    replicaCount: 2
+    resources:
+      requests:
+        cpu: 1000m
+        memory: 2Gi
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+
+## Flower monitoring
+flower:
+  enabled: true
+  auth:
+    username: admin
+    password: ""  # Set via --set or use existingSecret
+    existingSecret: "flower-credentials"
+
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      nginx.ingress.kubernetes.io/auth-type: basic
+      nginx.ingress.kubernetes.io/auth-secret: flower-basic-auth
+      nginx.ingress.kubernetes.io/auth-realm: "Flower Monitoring"
+    hosts:
+      - host: flower.earthgazer.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: flower-tls
+        hosts:
+          - flower.earthgazer.example.com
+
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+## Network policy - enable in production
+networkPolicy:
+  enabled: true
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+      - podSelector:
+          matchLabels:
+            app.kubernetes.io/name: earthgazer
+  egress:
+    - to:
+      - podSelector:
+          matchLabels:
+            app.kubernetes.io/name: earthgazer
+    # Allow external connections
+    - to:
+      - namespaceSelector: {}
+      ports:
+      - protocol: TCP
+        port: 443
+      - protocol: TCP
+        port: 80
+
+## Pod annotations for monitoring
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8000"
