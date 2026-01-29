@@ -59,7 +59,7 @@ spec:
             valueFrom:
               secretKeyRef:
                 name: {{ include "earthgazer.postgresql.secretName" . }}
-                key: password
+                key: postgres-password
           - name: EARTHGAZER__GCLOUD__SERVICE_ACCOUNT
             valueFrom:
               secretKeyRef:
