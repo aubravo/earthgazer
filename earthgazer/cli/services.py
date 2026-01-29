@@ -478,12 +478,20 @@ def run_location_backup_workflow(
     mission_filter: Optional[str] = None,
     limit: Optional[int] = None
 ) -> Optional[str]:
-    """Backup all unbacked-up captures for a specific location and return task ID."""
+    """
+    Backup all unbacked-up captures for a specific location.
+
+    Creates individual backup tasks for each capture to enable parallel
+    execution across Celery workers.
+
+    Returns task group ID.
+    """
     from sqlalchemy import create_engine, and_
     from sqlalchemy.orm import Session
     from earthgazer.settings import EarthGazerSettings
     from earthgazer.database.definitions import Location, CaptureData
-    from earthgazer.tasks import backup_capture_task
+    from earthgazer.tasks import backup_single_capture_task
+    from celery import group
 
     settings = EarthGazerSettings()
     engine = create_engine(settings.database.url, echo=False)
@@ -518,7 +526,17 @@ def run_location_backup_workflow(
     logger.info(f"Found {len(capture_ids)} unbacked-up captures for location {location_id}")
 
     if capture_ids:
-        result = backup_capture_task.delay(capture_ids)
+        # Create individual backup task for each capture
+        backup_tasks = [
+            backup_single_capture_task.si(capture_id)
+            for capture_id in capture_ids
+        ]
+
+        # Execute all backup tasks in parallel
+        backup_group = group(backup_tasks)
+        result = backup_group.apply_async()
+
+        logger.info(f"Created {len(capture_ids)} individual backup tasks for location {location_id}")
         return result.id
     else:
         logger.warning(f"No unbacked-up captures found for location {location_id}")

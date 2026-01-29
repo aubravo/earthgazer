@@ -112,6 +112,48 @@ def backup_capture_task(self: Task, capture_ids: Optional[List[int]] = None) -> 
 
 @app.task(
     bind=True,
+    name='earthgazer.tasks.backup_single_capture_task',
+    max_retries=5,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=600,
+    retry_jitter=True
+)
+def backup_single_capture_task(self: Task, capture_id: int) -> int:
+    """
+    Celery task: Backup a single capture from public GCS to project bucket.
+
+    This task processes one capture at a time, allowing for better parallelization
+    across multiple Celery workers.
+
+    Args:
+        capture_id: CaptureData ID to backup
+
+    Returns:
+        The capture_id if successful
+    """
+    logger.info(f"Task {self.request.id}: Backing up capture {capture_id}")
+
+    try:
+        settings = EarthGazerSettings()
+        creds = get_service_account_credentials()
+
+        # Backup single capture
+        backed_up_ids = download.backup_capture_to_project_bucket(settings, creds, [capture_id])
+
+        if backed_up_ids and capture_id in backed_up_ids:
+            logger.info(f"Task {self.request.id}: Successfully backed up capture {capture_id}")
+            return capture_id
+        else:
+            raise ValueError(f"Failed to backup capture {capture_id}")
+
+    except Exception as e:
+        logger.error(f"Task {self.request.id}: Error backing up capture {capture_id}: {e}")
+        raise
+
+
+@app.task(
+    bind=True,
     name='earthgazer.tasks.download_bands_task',
     max_retries=5,
     autoretry_for=(Exception,),

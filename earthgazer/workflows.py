@@ -17,6 +17,7 @@ from earthgazer.settings import EarthGazerSettings
 from earthgazer.tasks import (
     discover_images_task,
     backup_capture_task,
+    backup_single_capture_task,
     download_bands_task,
     stack_and_crop_task,
     compute_ndvi_task,
@@ -106,8 +107,11 @@ def process_multiple_captures_workflow(
     Workflow to process multiple captures in parallel.
 
     Pipeline:
-    1. Process each capture in parallel
+    1. Process each capture in parallel (each step is an individual task)
     2. Optionally run temporal analysis after all captures complete
+
+    This creates individual Celery tasks per capture per step, allowing
+    workers to process different images and steps in parallel.
 
     Args:
         capture_ids: List of CaptureData IDs to process
@@ -121,37 +125,39 @@ def process_multiple_captures_workflow(
     if bands is None:
         bands = ["B02", "B03", "B04", "B08"]
 
-    logger.info(f"Starting workflow for {len(capture_ids)} captures")
+    logger.info(f"Starting workflow for {len(capture_ids)} captures with individual tasks per step")
 
-    # Create parallel processing tasks for each capture
-    capture_workflows = []
+    # Create individual task chains for each capture
+    # Each step will be a separate Celery task that can run on any worker
+    all_processing_tasks = []
+
     for capture_id in capture_ids:
-        # Each capture gets its own workflow chain
-        capture_workflow = chain(
-            download_bands_task.si(capture_id, bands),
-            stack_and_crop_task.si(capture_id, bands, bounds),
+        # Create a chain for this specific capture
+        # Each task in the chain is independent and can be distributed
+        capture_chain = chain(
+            download_bands_task.s(capture_id, bands),
+            stack_and_crop_task.s(capture_id, bands, bounds),
+            # After stacking, run NDVI and RGB in parallel
             group(
-                compute_ndvi_task.si(capture_id, bands),
-                generate_rgb_task.si(capture_id, bands)
+                compute_ndvi_task.s(capture_id, bands),
+                generate_rgb_task.s(capture_id, bands)
             )
         )
-        capture_workflows.append(capture_workflow)
+        all_processing_tasks.append(capture_chain)
 
+    # Group all capture chains to run in parallel
+    # Each capture's tasks will run independently
     if run_temporal_analysis:
-        # Use chord to wait for all captures, then run temporal analysis
-        workflow = chord(
-            group(*capture_workflows),
-            temporal_analysis_task.si()
-        )
+        # Use chord to wait for all processing, then run analysis
+        workflow = chord(all_processing_tasks)(temporal_analysis_task.si())
     else:
-        # Just run captures in parallel without final callback
-        workflow = group(*capture_workflows)
+        # Just run all capture workflows in parallel
+        workflow = group(all_processing_tasks)()
 
-    # Execute workflow
-    result = workflow.apply_async()
-    logger.info(f"Workflow submitted for {len(capture_ids)} captures: {result.id}")
+    logger.info(f"Submitted {len(capture_ids)} capture workflows with {len(capture_ids) * 3} total task chains")
+    logger.info(f"Workflow ID: {workflow.id if hasattr(workflow, 'id') else 'group'}")
 
-    return result
+    return workflow
 
 
 def discovery_and_backup_workflow(location_ids: Optional[List[int]] = None):
@@ -160,7 +166,8 @@ def discovery_and_backup_workflow(location_ids: Optional[List[int]] = None):
 
     Pipeline:
     1. Discover new images from BigQuery
-    2. Backup discovered images to project bucket
+    2. Create individual backup tasks for each discovered capture
+    3. Each backup runs as a separate Celery task for parallel execution
 
     Args:
         location_ids: Optional list of Location IDs to query
@@ -170,17 +177,34 @@ def discovery_and_backup_workflow(location_ids: Optional[List[int]] = None):
     """
     logger.info("Starting discovery and backup workflow")
 
-    # Chain discovery and backup
-    workflow = chain(
-        discover_images_task.si(location_ids),
-        backup_capture_task.s()  # Pass discovered IDs to backup task
-    )
+    # First, run discovery to get capture IDs
+    discovery_result = discover_images_task.apply_async(args=[location_ids])
 
-    # Execute workflow
-    result = workflow.apply_async()
-    logger.info(f"Discovery and backup workflow submitted: {result.id}")
+    # Wait for discovery to complete and get the list of capture IDs
+    # Note: In production, this would be better as a callback task
+    capture_ids = discovery_result.get(timeout=300)  # 5 minute timeout
 
-    return result
+    logger.info(f"Discovered {len(capture_ids)} captures, creating individual backup tasks")
+
+    if not capture_ids:
+        logger.warning("No captures discovered, skipping backup")
+        return discovery_result
+
+    # Create individual backup tasks for each capture
+    # This allows parallel execution across workers
+    backup_tasks = [
+        backup_single_capture_task.si(capture_id)
+        for capture_id in capture_ids
+    ]
+
+    # Execute all backup tasks in parallel
+    backup_group = group(backup_tasks)
+    backup_result = backup_group.apply_async()
+
+    logger.info(f"Created {len(capture_ids)} individual backup tasks")
+    logger.info(f"Backup group ID: {backup_result.id}")
+
+    return backup_result
 
 
 def full_pipeline_workflow(
@@ -193,11 +217,13 @@ def full_pipeline_workflow(
     Complete end-to-end workflow: discovery → backup → processing → analysis.
 
     Pipeline:
-    1. Discover new images
-    2. Backup to project bucket
-    3. Query backed-up captures
-    4. Process all captures in parallel
-    5. Run temporal analysis
+    1. Discover new images (single task)
+    2. Backup each discovered capture (individual tasks per capture)
+    3. Query backed-up captures from database
+    4. Process each capture with individual tasks per step
+    5. Run temporal analysis after all processing completes
+
+    Each capture gets its own set of Celery tasks for maximum parallelization.
 
     Args:
         location_ids: Optional list of Location IDs to query
@@ -211,16 +237,33 @@ def full_pipeline_workflow(
     if bands is None:
         bands = ["B02", "B03", "B04", "B08"]
 
-    logger.info("Starting full pipeline workflow")
+    logger.info("Starting full pipeline workflow with per-capture task distribution")
 
-    # Step 1 & 2: Discovery and backup
-    discovery_result = discovery_and_backup_workflow(location_ids)
+    # Step 1: Discovery
+    logger.info("Step 1: Running discovery...")
+    discovery_result = discover_images_task.apply_async(args=[location_ids])
+    discovered_capture_ids = discovery_result.get(timeout=300)
 
-    # Wait for discovery/backup to complete, then get backed-up captures
-    # Note: In production, you'd use a callback task here
-    # For now, this demonstrates the workflow structure
+    logger.info(f"Discovered {len(discovered_capture_ids)} new captures")
 
-    # Get captures to process
+    if not discovered_capture_ids:
+        logger.warning("No new captures discovered")
+        return None
+
+    # Step 2: Backup - individual task per capture
+    logger.info(f"Step 2: Creating {len(discovered_capture_ids)} individual backup tasks...")
+    backup_tasks = [
+        backup_single_capture_task.si(capture_id)
+        for capture_id in discovered_capture_ids
+    ]
+    backup_group = group(backup_tasks)
+    backup_result = backup_group.apply_async()
+
+    # Wait for all backups to complete
+    backup_result.get(timeout=600)  # 10 minute timeout for backups
+    logger.info(f"All backups completed")
+
+    # Step 3: Query backed-up captures (optionally filtered by mission)
     settings = EarthGazerSettings()
     engine = create_engine(settings.database.url, echo=False)
 
@@ -233,10 +276,11 @@ def full_pipeline_workflow(
         captures = query.all()
         capture_ids = [c.id for c in captures]
 
-    logger.info(f"Found {len(capture_ids)} backed-up captures to process")
+    logger.info(f"Step 3: Found {len(capture_ids)} backed-up captures to process")
 
-    # Step 3, 4, 5: Process all captures and run analysis
+    # Step 4 & 5: Process all captures with individual tasks and run analysis
     if capture_ids:
+        logger.info(f"Step 4-5: Processing {len(capture_ids)} captures with individual task chains...")
         processing_result = process_multiple_captures_workflow(
             capture_ids,
             bands,
