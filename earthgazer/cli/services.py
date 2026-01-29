@@ -1,5 +1,5 @@
 """
-Services module - Data access and Celery interactions for the TUI.
+Services module - Data access and Celery interactions for the CLI.
 """
 
 import logging
@@ -245,6 +245,132 @@ def run_discovery_and_backup_workflow(
 
     result = discovery_and_backup_workflow(location_ids)
     return result.id
+
+
+def run_multiple_captures_workflow(
+    capture_ids: List[int],
+    bands: List[str] = None,
+    bounds: tuple = None,
+    run_temporal_analysis: bool = True
+) -> str:
+    """Process multiple captures in parallel and return task ID."""
+    from earthgazer.workflows import process_multiple_captures_workflow
+
+    result = process_multiple_captures_workflow(
+        capture_ids=capture_ids,
+        bands=bands,
+        bounds=bounds,
+        run_temporal_analysis=run_temporal_analysis
+    )
+    return result.id
+
+
+def run_full_pipeline_workflow(
+    location_ids: Optional[List[int]] = None,
+    bands: List[str] = None,
+    bounds: tuple = None,
+    mission_filter: Optional[str] = None
+) -> Optional[str]:
+    """Run complete end-to-end workflow and return task ID."""
+    from earthgazer.workflows import full_pipeline_workflow
+
+    result = full_pipeline_workflow(
+        location_ids=location_ids,
+        bands=bands,
+        bounds=bounds,
+        mission_filter=mission_filter
+    )
+    return result.id if result else None
+
+
+def run_reprocess_workflow(
+    mission_filter: Optional[str] = None,
+    bands: List[str] = None,
+    bounds: tuple = None,
+    limit: Optional[int] = None
+) -> Optional[str]:
+    """Reprocess existing backed-up captures and return task ID."""
+    from earthgazer.workflows import reprocess_existing_captures_workflow
+
+    result = reprocess_existing_captures_workflow(
+        mission_filter=mission_filter,
+        bands=bands,
+        bounds=bounds,
+        limit=limit
+    )
+    return result.id if result else None
+
+
+def run_location_workflow(
+    location_id: int,
+    bands: List[str] = None,
+    mission_filter: Optional[str] = None,
+    limit: Optional[int] = None,
+    run_temporal_analysis: bool = True
+) -> Optional[str]:
+    """Process all captures for a specific location and return task ID."""
+    from earthgazer.workflows import process_location_captures_workflow
+
+    result = process_location_captures_workflow(
+        location_id=location_id,
+        bands=bands,
+        mission_filter=mission_filter,
+        limit=limit,
+        run_temporal_analysis=run_temporal_analysis
+    )
+    return result.id if result else None
+
+
+def run_location_backup_workflow(
+    location_id: int,
+    mission_filter: Optional[str] = None,
+    limit: Optional[int] = None
+) -> Optional[str]:
+    """Backup all unbacked-up captures for a specific location and return task ID."""
+    from sqlalchemy import create_engine, and_
+    from sqlalchemy.orm import Session
+    from earthgazer.settings import EarthGazerSettings
+    from earthgazer.database.definitions import Location, CaptureData
+    from earthgazer.tasks import backup_capture_task
+
+    settings = EarthGazerSettings()
+    engine = create_engine(settings.database.url, echo=False)
+
+    with Session(engine) as session:
+        # Get location bounds
+        location = session.query(Location).where(Location.id == location_id).first()
+        if location is None:
+            raise ValueError(f"Location {location_id} not found")
+
+        # Find captures that overlap with location bounds and are not backed up
+        query = session.query(CaptureData).where(
+            and_(
+                CaptureData.backed_up == False,
+                # Check for geographic overlap
+                CaptureData.west_lon <= location.max_lon,
+                CaptureData.east_lon >= location.min_lon,
+                CaptureData.south_lat <= location.max_lat,
+                CaptureData.north_lat >= location.min_lat
+            )
+        )
+
+        if mission_filter:
+            query = query.where(CaptureData.mission_id.contains(mission_filter))
+
+        if limit:
+            query = query.limit(limit)
+
+        captures = query.all()
+        capture_ids = [c.id for c in captures]
+
+    logger.info(f"Found {len(capture_ids)} unbacked-up captures for location {location_id}")
+
+    if capture_ids:
+        result = backup_capture_task.delay(capture_ids)
+        return result.id
+    else:
+        logger.warning(f"No unbacked-up captures found for location {location_id}")
+        return None
 
 
 def get_task_result(task_id: str) -> Dict[str, Any]:

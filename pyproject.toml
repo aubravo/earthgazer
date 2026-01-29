@@ -10,7 +10,7 @@ description = "Satellite image processing and analysis"
 requires-python = ">=3.11"
 
 [project.scripts]
-earthgazer = "earthgazer.tui.app:main"
+earthgazer = "earthgazer.cli.main:cli"
 
 [tool.setuptools.packages.find]
 include = ["earthgazer*"]
