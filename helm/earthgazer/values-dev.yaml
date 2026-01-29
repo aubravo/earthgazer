@@ -4,7 +4,7 @@
 ## Docker image settings
 image:
   registry: "docker.io"
-  repository: earthgazer/earthgazer
+  repository: alvaroubravo/earthgazer
   tag: "latest"  # Use latest for dev
   pullPolicy: Always
 
@@ -24,6 +24,13 @@ gcloud:
 ## PostgreSQL development settings
 postgresql:
   enabled: true
+
+  image:
+    registry: docker.io
+    repository: library/postgres
+    tag: "15-alpine"
+    pullPolicy: IfNotPresent
+
   auth:
     username: earthgazer
     password: "devpassword"  # Simple password for dev
@@ -44,15 +51,16 @@ postgresql:
         cpu: 1000m
         memory: 1Gi
 
-    extendedConfiguration: |-
-      max_connections = 50
-      shared_buffers = 128MB
-      effective_cache_size = 512MB
-      work_mem = 8MB
-
 ## Redis development settings
 redis:
   enabled: true
+
+  image:
+    registry: docker.io
+    repository: library/redis
+    tag: "7-alpine"
+    pullPolicy: IfNotPresent
+
   auth:
     enabled: true
     password: "devpassword"

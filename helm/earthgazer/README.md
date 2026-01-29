@@ -6,14 +6,16 @@ Helm chart for deploying EarthGazer - a satellite image processing and analysis 
 
 This Helm chart deploys a complete EarthGazer stack including:
 
-- **PostgreSQL Database** (via Bitnami chart) - Stores metadata and task information
-- **Redis** (via Bitnami chart) - Message broker for Celery task queue
+- **PostgreSQL Database** (official postgres:15-alpine image) - Stores metadata and task information
+- **Redis** (official redis:7-alpine image) - Message broker for Celery task queue
 - **Celery Workers** - Three types of workers for different workloads:
   - I/O Workers: Optimized for download/upload tasks
   - CPU Workers: Optimized for computation-intensive tasks
   - Default Workers: Handle miscellaneous tasks
 - **Flower** - Web-based monitoring UI for Celery
 - **Persistent Storage** - Shared volume for satellite imagery data
+
+**Note**: This chart uses official Docker Hub images for PostgreSQL and Redis instead of Bitnami charts, ensuring free and open access without licensing concerns.
 
 ## Prerequisites
 
@@ -25,25 +27,7 @@ This Helm chart deploys a complete EarthGazer stack including:
 
 ## Installing the Chart
 
-### 1. Add Bitnami Repository
-
-The chart depends on Bitnami's PostgreSQL and Redis charts:
-
-```bash
-helm repo add bitnami https://charts.bitnami.com/bitnami
-helm repo update
-```
-
-### 2. Update Chart Dependencies
-
-```bash
-cd helm/earthgazer
-helm dependency update
-```
-
-This will download the PostgreSQL and Redis charts to the `charts/` directory.
-
-### 3. Create Secrets
+### 1. Create Secrets
 
 Create a Kubernetes secret with your Google Cloud service account credentials:
 
@@ -69,7 +53,7 @@ kubectl create secret generic flower-credentials \
   --from-literal=password=YOUR_FLOWER_PASSWORD
 ```
 
-### 4. Install the Chart
+### 2. Install the Chart
 
 #### Development Installation
 
@@ -92,7 +76,7 @@ helm install earthgazer . -f values-prod.yaml \
   --set flower.auth.existingSecret=flower-credentials
 ```
 
-### 5. Verify Installation
+### 3. Verify Installation
 
 Check that all pods are running:
 

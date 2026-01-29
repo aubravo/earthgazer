@@ -123,7 +123,7 @@ Get the Redis host
 */}}
 {{- define "earthgazer.redis.host" -}}
 {{- if .Values.redis.enabled }}
-{{- printf "%s-redis-master" (include "earthgazer.fullname" .) }}
+{{- printf "%s-redis" (include "earthgazer.fullname" .) }}
 {{- else }}
 {{- required "A valid .Values.externalRedis.host is required" .Values.externalRedis.host }}
 {{- end }}

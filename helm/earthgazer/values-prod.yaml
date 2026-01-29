@@ -3,8 +3,8 @@
 
 ## Docker image settings
 image:
-  registry: "your-registry.io"
-  repository: earthgazer/earthgazer
+  registry: "docker.io"
+  repository: alvaroubravo/earthgazer
   tag: "1.0.0"  # Use specific version in production
   pullPolicy: IfNotPresent
 
@@ -27,6 +27,13 @@ gcloud:
 ## PostgreSQL production settings
 postgresql:
   enabled: true
+
+  image:
+    registry: docker.io
+    repository: library/postgres
+    tag: "15-alpine"
+    pullPolicy: IfNotPresent
+
   auth:
     username: earthgazer
     password: ""  # Set via --set or use existingSecret
@@ -47,19 +54,16 @@ postgresql:
         cpu: 4000m
         memory: 8Gi
 
-    extendedConfiguration: |
-      max_connections = 300
-      shared_buffers = 2GB
-      effective_cache_size = 6GB
-      work_mem = 32MB
-      maintenance_work_mem = 1GB
-      checkpoint_completion_target = 0.9
-      wal_buffers = 16MB
-      random_page_cost = 1.1
-
 ## Redis production settings
 redis:
   enabled: true
+
+  image:
+    registry: docker.io
+    repository: library/redis
+    tag: "7-alpine"
+    pullPolicy: IfNotPresent
+
   auth:
     enabled: true
     password: ""  # Set via --set or use existingSecret
