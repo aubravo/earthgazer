@@ -23,7 +23,20 @@ def get_system_status() -> Dict[str, Any]:
     # Check Redis
     try:
         import redis
-        r = redis.Redis(host="redis", port=6379, socket_timeout=2)
+        from urllib.parse import urlparse
+        from earthgazer.settings import EarthGazerSettings
+
+        settings = EarthGazerSettings()
+        broker_url = settings.celery.broker_url
+        parsed = urlparse(broker_url)
+
+        r = redis.Redis(
+            host=parsed.hostname or "localhost",
+            port=parsed.port or 6379,
+            password=parsed.password,
+            socket_timeout=2,
+            decode_responses=False
+        )
         status["redis"] = r.ping()
     except Exception as e:
         logger.debug(f"Redis check failed: {e}")

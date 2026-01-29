@@ -46,7 +46,6 @@ spec:
           - earthgazer.celery_app
           - flower
           - --port=5555
-          - --broker=$(EARTHGAZER__CELERY__BROKER_URL)
         ports:
           - name: http
             containerPort: 5555
