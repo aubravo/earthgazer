@@ -10,6 +10,7 @@ Complete guide for using the Earth Gazer Command Line Interface for satellite im
 - [Monitoring Commands](#monitoring-commands)
 - [Captures Commands](#captures-commands)
 - [Workflows Commands](#workflows-commands)
+- [Location Commands](#location-commands)
 - [Output Formats](#output-formats)
 - [Common Workflows](#common-workflows)
 - [Troubleshooting](#troubleshooting)
@@ -61,10 +62,18 @@ earthgazer
 │   ├── active             # List active tasks
 │   ├── history            # Show task execution history
 │   └── task               # Check specific task status by ID
-└── captures                # Capture management
-    ├── list               # Browse captures
-    ├── show               # Show capture details
-    └── process            # Process specific capture
+├── captures                # Capture management
+│   ├── list               # Browse captures
+│   ├── show               # Show capture details
+│   └── process            # Process specific capture
+└── locations               # Location management
+    ├── list               # List all monitored locations
+    ├── show               # Show location details
+    ├── create             # Create new location
+    ├── update             # Update existing location
+    ├── delete             # Delete a location
+    ├── activate           # Activate location for monitoring
+    └── deactivate         # Deactivate location
 ```
 
 ### Global Options
@@ -557,6 +566,237 @@ Limit: 50 captures
 ```
 
 **Note:** This command finds all discovered captures that geographically overlap with the location's bounds but have not yet been backed up to Google Cloud Storage. It's useful after running discovery to backup new images before processing them.
+
+## Location Commands
+
+Manage monitored locations (geographic regions of interest) for satellite image discovery and processing.
+
+### `earthgazer locations list`
+
+List all monitored locations with their IDs, names, center coordinates, and active status.
+
+**Usage:**
+```bash
+earthgazer locations list
+earthgazer locations list --json
+```
+
+**Options:**
+- `--json` - Output as JSON
+
+**Example Output:**
+```
+┏━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┓
+┃ ID ┃ Name           ┃ Center (Lon, Lat)    ┃ Active ┃
+┡━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━┩
+│ 1  │ San Francisco  │ -122.4194, 37.7749   │ ✓      │
+│ 2  │ Amazon Basin   │ -60.0250, -3.4653    │ ✓      │
+│ 3  │ Tokyo Bay      │ 139.8394, 35.6528    │ ✗      │
+└────┴────────────────┴──────────────────────┴────────┘
+```
+
+### `earthgazer locations show <id>`
+
+Display detailed information about a specific location including bounding box coordinates, center point, date range, and status.
+
+**Usage:**
+```bash
+earthgazer locations show 1
+earthgazer locations show 1 --json
+```
+
+**Arguments:**
+- `location_id` - Location ID to display
+
+**Options:**
+- `--json` - Output as JSON
+
+**Example Output:**
+```
+╭─ Location Details ─────────────────────────────────────────╮
+│ Location #1: San Francisco                                 │
+│                                                             │
+│ Bounding Box:                                               │
+│   Min Longitude (West):  -122.527200°                       │
+│   Max Longitude (East):  -122.355400°                       │
+│   Min Latitude (South):  37.707500°                         │
+│   Max Latitude (North):  37.833000°                         │
+│                                                             │
+│ Center Point:                                               │
+│   Longitude: -122.441300°                                   │
+│   Latitude:  37.770250°                                     │
+│                                                             │
+│ Date Range:                                                 │
+│   From: 2020-01-01 00:00:00                                 │
+│   To:   2024-12-31 23:59:59                                 │
+│                                                             │
+│ Status:                                                     │
+│   Active: Yes                                               │
+│   Added:  2024-01-15 10:30:00                               │
+╰─────────────────────────────────────────────────────────────╯
+```
+
+### `earthgazer locations create`
+
+Create a new monitored location by specifying a name, bounding box coordinates, and date range for image discovery.
+
+**Usage:**
+```bash
+earthgazer locations create \
+  --name "Amazon Rainforest" \
+  --min-lon -70.0 \
+  --min-lat -10.0 \
+  --max-lon -50.0 \
+  --max-lat 0.0 \
+  --from-date "2020-01-01" \
+  --to-date "2024-12-31"
+```
+
+**Options:**
+- `--name TEXT` - Location name (required)
+- `--min-lon FLOAT` - Minimum longitude / West boundary (required)
+- `--min-lat FLOAT` - Minimum latitude / South boundary (required)
+- `--max-lon FLOAT` - Maximum longitude / East boundary (required)
+- `--max-lat FLOAT` - Maximum latitude / North boundary (required)
+- `--from-date TEXT` - Start date for image discovery in ISO format YYYY-MM-DD (required)
+- `--to-date TEXT` - End date for image discovery in ISO format YYYY-MM-DD (required)
+- `--active / --inactive` - Whether location is active (default: active)
+- `--json` - Output as JSON
+
+**Example:**
+```bash
+earthgazer locations create \
+  --name "Yosemite National Park" \
+  --min-lon -119.9 \
+  --min-lat 37.5 \
+  --max-lon -119.2 \
+  --max-lat 38.2 \
+  --from-date "2020-01-01" \
+  --to-date "2024-12-31" \
+  --active
+```
+
+**Example Output:**
+```
+Location created successfully
+Location ID: 5
+Name: Yosemite National Park
+Bounds: (-119.9, 37.5) to (-119.2, 38.2)
+```
+
+**Notes:**
+- Dates should be in ISO format (YYYY-MM-DD)
+- Bounding box defines the geographic area to monitor
+- min-lon must be less than max-lon
+- min-lat must be less than max-lat
+- Date range determines which historical images to discover
+
+### `earthgazer locations update <id>`
+
+Update properties of an existing location. You can modify the name, bounds, date range, or active status.
+
+**Usage:**
+```bash
+earthgazer locations update 5 --name "Yosemite Valley"
+earthgazer locations update 5 --to-date "2025-12-31"
+earthgazer locations update 5 --active
+```
+
+**Arguments:**
+- `location_id` - Location ID to update
+
+**Options:**
+- `--name TEXT` - Update location name
+- `--min-lon FLOAT` - Update minimum longitude
+- `--min-lat FLOAT` - Update minimum latitude
+- `--max-lon FLOAT` - Update maximum longitude
+- `--max-lat FLOAT` - Update maximum latitude
+- `--from-date TEXT` - Update start date (ISO format)
+- `--to-date TEXT` - Update end date (ISO format)
+- `--active / --inactive` - Update active status
+
+**Examples:**
+```bash
+# Update name
+earthgazer locations update 3 --name "Greater Tokyo Region"
+
+# Expand bounding box
+earthgazer locations update 3 --max-lon 140.0 --max-lat 36.0
+
+# Extend date range
+earthgazer locations update 3 --to-date "2026-12-31"
+
+# Multiple updates at once
+earthgazer locations update 3 --name "New Name" --active
+```
+
+**Example Output:**
+```
+Location 3 updated successfully
+```
+
+### `earthgazer locations delete <id>`
+
+Delete a location from the database. This action requires confirmation and cannot be undone.
+
+**Usage:**
+```bash
+earthgazer locations delete 5
+```
+
+**Arguments:**
+- `location_id` - Location ID to delete
+
+**Example:**
+```bash
+earthgazer locations delete 5
+# Prompts: Are you sure you want to delete this location? [y/N]:
+```
+
+**Example Output:**
+```
+Location 5 deleted successfully
+```
+
+**Warning:** This action permanently removes the location from the database. Associated capture data is not deleted.
+
+### `earthgazer locations activate <id>`
+
+Activate a location to enable it for image discovery and monitoring.
+
+**Usage:**
+```bash
+earthgazer locations activate 3
+```
+
+**Arguments:**
+- `location_id` - Location ID to activate
+
+**Example Output:**
+```
+Location 3 activated
+```
+
+**Note:** Only active locations are included in discovery workflows when no specific location IDs are provided.
+
+### `earthgazer locations deactivate <id>`
+
+Deactivate a location to temporarily disable it from image discovery without deleting it.
+
+**Usage:**
+```bash
+earthgazer locations deactivate 3
+```
+
+**Arguments:**
+- `location_id` - Location ID to deactivate
+
+**Example Output:**
+```
+Location 3 deactivated
+```
+
+**Note:** Deactivated locations are skipped during discovery workflows but can be reactivated later. Existing capture data is preserved.
 
 ## Output Formats
 

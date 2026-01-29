@@ -205,6 +205,158 @@ def get_locations() -> List[Dict[str, Any]]:
     return locations
 
 
+def get_location_by_id(location_id: int) -> Optional[Dict[str, Any]]:
+    """Get detailed information about a specific location."""
+    try:
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import Session
+        from earthgazer.settings import EarthGazerSettings
+        from earthgazer.database.definitions import Location
+
+        settings = EarthGazerSettings()
+        engine = create_engine(settings.database.url, echo=False)
+
+        with Session(engine) as session:
+            loc = session.query(Location).where(Location.id == location_id).first()
+            if loc:
+                return {
+                    "id": loc.id,
+                    "name": loc.name,
+                    "min_lon": loc.min_lon,
+                    "min_lat": loc.min_lat,
+                    "max_lon": loc.max_lon,
+                    "max_lat": loc.max_lat,
+                    "center_lon": loc.center[0],
+                    "center_lat": loc.center[1],
+                    "from_date": loc.from_date,
+                    "to_date": loc.to_date,
+                    "active": loc.active,
+                    "added": loc.added,
+                }
+    except Exception as e:
+        logger.debug(f"Failed to get location {location_id}: {e}")
+
+    return None
+
+
+def create_location(
+    name: str,
+    min_lon: float,
+    min_lat: float,
+    max_lon: float,
+    max_lat: float,
+    from_date: str,
+    to_date: str,
+    active: bool = True
+) -> int:
+    """Create a new location and return its ID."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+    from earthgazer.settings import EarthGazerSettings
+    from earthgazer.database.definitions import Location
+    from datetime import datetime
+
+    settings = EarthGazerSettings()
+    engine = create_engine(settings.database.url, echo=False)
+
+    # Parse dates
+    from_dt = datetime.fromisoformat(from_date)
+    to_dt = datetime.fromisoformat(to_date)
+
+    # Calculate center point for legacy fields
+    center_lon = (min_lon + max_lon) / 2
+    center_lat = (min_lat + max_lat) / 2
+
+    with Session(engine) as session:
+        location = Location(
+            name=name,
+            min_lon=min_lon,
+            min_lat=min_lat,
+            max_lon=max_lon,
+            max_lat=max_lat,
+            longitude=center_lon,
+            latitude=center_lat,
+            from_date=from_dt,
+            to_date=to_dt,
+            active=active
+        )
+        session.add(location)
+        session.commit()
+        location_id = location.id
+
+    logger.info(f"Created location {location_id}: {name}")
+    return location_id
+
+
+def update_location(location_id: int, **kwargs) -> bool:
+    """Update an existing location. Returns True if successful."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+    from earthgazer.settings import EarthGazerSettings
+    from earthgazer.database.definitions import Location
+    from datetime import datetime
+
+    settings = EarthGazerSettings()
+    engine = create_engine(settings.database.url, echo=False)
+
+    with Session(engine) as session:
+        location = session.query(Location).where(Location.id == location_id).first()
+        if not location:
+            logger.error(f"Location {location_id} not found")
+            return False
+
+        # Update allowed fields
+        if "name" in kwargs:
+            location.name = kwargs["name"]
+        if "min_lon" in kwargs:
+            location.min_lon = kwargs["min_lon"]
+        if "min_lat" in kwargs:
+            location.min_lat = kwargs["min_lat"]
+        if "max_lon" in kwargs:
+            location.max_lon = kwargs["max_lon"]
+        if "max_lat" in kwargs:
+            location.max_lat = kwargs["max_lat"]
+        if "from_date" in kwargs:
+            location.from_date = datetime.fromisoformat(kwargs["from_date"])
+        if "to_date" in kwargs:
+            location.to_date = datetime.fromisoformat(kwargs["to_date"])
+        if "active" in kwargs:
+            location.active = kwargs["active"]
+
+        # Update legacy center point if bounds changed
+        if any(k in kwargs for k in ["min_lon", "min_lat", "max_lon", "max_lat"]):
+            location.longitude = (location.min_lon + location.max_lon) / 2
+            location.latitude = (location.min_lat + location.max_lat) / 2
+
+        session.commit()
+
+    logger.info(f"Updated location {location_id}")
+    return True
+
+
+def delete_location(location_id: int) -> bool:
+    """Delete a location. Returns True if successful."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+    from earthgazer.settings import EarthGazerSettings
+    from earthgazer.database.definitions import Location
+
+    settings = EarthGazerSettings()
+    engine = create_engine(settings.database.url, echo=False)
+
+    with Session(engine) as session:
+        location = session.query(Location).where(Location.id == location_id).first()
+        if not location:
+            logger.error(f"Location {location_id} not found")
+            return False
+
+        session.delete(location)
+        session.commit()
+
+    logger.info(f"Deleted location {location_id}")
+    return True
+
+
 def run_discover_workflow(location_ids: Optional[List[int]] = None) -> str:
     """Start the discovery workflow and return task ID."""
     from earthgazer.tasks import discover_images_task

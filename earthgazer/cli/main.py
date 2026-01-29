@@ -10,6 +10,7 @@ from earthgazer.cli.commands.status import status, watch
 from earthgazer.cli.commands.monitoring import monitoring
 from earthgazer.cli.commands.captures import captures
 from earthgazer.cli.commands.workflows import workflows
+from earthgazer.cli.commands.locations import locations
 
 
 @click.group()
@@ -32,6 +33,7 @@ cli.add_command(watch)
 cli.add_command(monitoring)
 cli.add_command(captures)
 cli.add_command(workflows)
+cli.add_command(locations)
 
 
 def main():
