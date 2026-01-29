@@ -69,7 +69,7 @@ def show(location_id, output_json):
     loc = get_location_by_id(location_id)
 
     if not loc:
-        console.print(f"[red]Location {location_id} not found[/red]", err=True)
+        console.print(f"[red]Location {location_id} not found[/red]", stderr=True)
         raise click.Abort()
 
     if output_json:
@@ -117,11 +117,11 @@ def create(name, min_lon, min_lat, max_lon, max_lat, from_date, to_date, active,
 
     # Validate bounds
     if min_lon >= max_lon:
-        console.print("[red]Error: min-lon must be less than max-lon[/red]", err=True)
+        console.print("[red]Error: min-lon must be less than max-lon[/red]", stderr=True)
         raise click.Abort()
 
     if min_lat >= max_lat:
-        console.print("[red]Error: min-lat must be less than max-lat[/red]", err=True)
+        console.print("[red]Error: min-lat must be less than max-lat[/red]", stderr=True)
         raise click.Abort()
 
     try:
@@ -136,7 +136,7 @@ def create(name, min_lon, min_lat, max_lon, max_lat, from_date, to_date, active,
             active=active
         )
     except Exception as e:
-        console.print(f"[red]Error creating location: {e}[/red]", err=True)
+        console.print(f"[red]Error creating location: {e}[/red]", stderr=True)
         raise click.Abort()
 
     if output_json:
@@ -191,10 +191,10 @@ def update(location_id, name, min_lon, min_lat, max_lon, max_lat, from_date, to_
         if success:
             console.print(f"[green]Location {location_id} updated successfully[/green]")
         else:
-            console.print(f"[red]Failed to update location {location_id}[/red]", err=True)
+            console.print(f"[red]Failed to update location {location_id}[/red]", stderr=True)
             raise click.Abort()
     except Exception as e:
-        console.print(f"[red]Error updating location: {e}[/red]", err=True)
+        console.print(f"[red]Error updating location: {e}[/red]", stderr=True)
         raise click.Abort()
 
 
@@ -210,10 +210,10 @@ def delete(location_id):
         if success:
             console.print(f"[green]Location {location_id} deleted successfully[/green]")
         else:
-            console.print(f"[red]Location {location_id} not found[/red]", err=True)
+            console.print(f"[red]Location {location_id} not found[/red]", stderr=True)
             raise click.Abort()
     except Exception as e:
-        console.print(f"[red]Error deleting location: {e}[/red]", err=True)
+        console.print(f"[red]Error deleting location: {e}[/red]", stderr=True)
         raise click.Abort()
 
 
@@ -228,10 +228,10 @@ def activate(location_id):
         if success:
             console.print(f"[green]Location {location_id} activated[/green]")
         else:
-            console.print(f"[red]Location {location_id} not found[/red]", err=True)
+            console.print(f"[red]Location {location_id} not found[/red]", stderr=True)
             raise click.Abort()
     except Exception as e:
-        console.print(f"[red]Error activating location: {e}[/red]", err=True)
+        console.print(f"[red]Error activating location: {e}[/red]", stderr=True)
         raise click.Abort()
 
 
@@ -246,8 +246,8 @@ def deactivate(location_id):
         if success:
             console.print(f"[yellow]Location {location_id} deactivated[/yellow]")
         else:
-            console.print(f"[red]Location {location_id} not found[/red]", err=True)
+            console.print(f"[red]Location {location_id} not found[/red]", stderr=True)
             raise click.Abort()
     except Exception as e:
-        console.print(f"[red]Error deactivating location: {e}[/red]", err=True)
+        console.print(f"[red]Error deactivating location: {e}[/red]", stderr=True)
         raise click.Abort()

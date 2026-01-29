@@ -157,14 +157,14 @@ def validate_capture_id(capture_id: int, console: Console = None) -> bool:
     capture = next((c for c in captures if c['id'] == capture_id), None)
 
     if not capture:
-        console.print(f"[red]Error: Capture {capture_id} not found[/red]", err=True)
+        console.print(f"[red]Error: Capture {capture_id} not found[/red]", stderr=True)
         return False
 
     if not capture.get('backed_up'):
         console.print(
             f"[red]Error: Capture {capture_id} is not backed up. "
             f"Please back it up first.[/red]",
-            err=True
+            stderr=True
         )
         return False
 

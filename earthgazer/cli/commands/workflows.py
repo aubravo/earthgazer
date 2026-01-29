@@ -35,7 +35,7 @@ def discover(follow_flag, output_json):
     try:
         task_id = run_discover_workflow()
     except Exception as e:
-        console.print(f"[red]Error starting discovery: {e}[/red]", err=True)
+        console.print(f"[red]Error starting discovery: {e}[/red]", stderr=True)
         raise click.Abort()
 
     if output_json:
@@ -68,14 +68,14 @@ def process(capture_id, bands, bounds, follow_flag, output_json):
         try:
             bounds_tuple = parse_bounds(bounds)
         except ValueError as e:
-            console.print(f"[red]Error: {e}[/red]", err=True)
+            console.print(f"[red]Error: {e}[/red]", stderr=True)
             raise click.Abort()
 
     # Start workflow
     try:
         task_id = run_single_capture_workflow(capture_id, bands_list, bounds_tuple)
     except Exception as e:
-        console.print(f"[red]Error starting workflow: {e}[/red]", err=True)
+        console.print(f"[red]Error starting workflow: {e}[/red]", stderr=True)
         raise click.Abort()
 
     if output_json:
@@ -107,7 +107,7 @@ def pipeline(follow_flag, output_json):
     try:
         task_id = run_discovery_and_backup_workflow()
     except Exception as e:
-        console.print(f"[red]Error starting pipeline: {e}[/red]", err=True)
+        console.print(f"[red]Error starting pipeline: {e}[/red]", stderr=True)
         raise click.Abort()
 
     if output_json:
@@ -140,7 +140,7 @@ def process_multiple(capture_ids, bands, bounds, temporal_analysis, follow_flag,
     try:
         capture_id_list = [int(x.strip()) for x in capture_ids.split(',')]
     except ValueError:
-        console.print("[red]Error: Invalid capture IDs. Must be comma-separated integers.[/red]", err=True)
+        console.print("[red]Error: Invalid capture IDs. Must be comma-separated integers.[/red]", stderr=True)
         raise click.Abort()
 
     # Parse bands
@@ -152,7 +152,7 @@ def process_multiple(capture_ids, bands, bounds, temporal_analysis, follow_flag,
         try:
             bounds_tuple = parse_bounds(bounds)
         except ValueError as e:
-            console.print(f"[red]Error: {e}[/red]", err=True)
+            console.print(f"[red]Error: {e}[/red]", stderr=True)
             raise click.Abort()
 
     # Start workflow
@@ -164,7 +164,7 @@ def process_multiple(capture_ids, bands, bounds, temporal_analysis, follow_flag,
             temporal_analysis
         )
     except Exception as e:
-        console.print(f"[red]Error starting workflow: {e}[/red]", err=True)
+        console.print(f"[red]Error starting workflow: {e}[/red]", stderr=True)
         raise click.Abort()
 
     if output_json:
@@ -204,7 +204,7 @@ def full_pipeline(location_ids, bands, bounds, mission, follow_flag, output_json
         try:
             location_id_list = [int(x.strip()) for x in location_ids.split(',')]
         except ValueError:
-            console.print("[red]Error: Invalid location IDs. Must be comma-separated integers.[/red]", err=True)
+            console.print("[red]Error: Invalid location IDs. Must be comma-separated integers.[/red]", stderr=True)
             raise click.Abort()
 
     # Parse bands
@@ -216,7 +216,7 @@ def full_pipeline(location_ids, bands, bounds, mission, follow_flag, output_json
         try:
             bounds_tuple = parse_bounds(bounds)
         except ValueError as e:
-            console.print(f"[red]Error: {e}[/red]", err=True)
+            console.print(f"[red]Error: {e}[/red]", stderr=True)
             raise click.Abort()
 
     if not output_json:
@@ -233,7 +233,7 @@ def full_pipeline(location_ids, bands, bounds, mission, follow_flag, output_json
             mission
         )
     except Exception as e:
-        console.print(f"[red]Error starting workflow: {e}[/red]", err=True)
+        console.print(f"[red]Error starting workflow: {e}[/red]", stderr=True)
         raise click.Abort()
 
     if task_id is None:
@@ -276,7 +276,7 @@ def reprocess(mission, bands, bounds, limit, follow_flag, output_json):
         try:
             bounds_tuple = parse_bounds(bounds)
         except ValueError as e:
-            console.print(f"[red]Error: {e}[/red]", err=True)
+            console.print(f"[red]Error: {e}[/red]", stderr=True)
             raise click.Abort()
 
     # Start workflow
@@ -288,7 +288,7 @@ def reprocess(mission, bands, bounds, limit, follow_flag, output_json):
             limit
         )
     except Exception as e:
-        console.print(f"[red]Error starting workflow: {e}[/red]", err=True)
+        console.print(f"[red]Error starting workflow: {e}[/red]", stderr=True)
         raise click.Abort()
 
     if task_id is None:
@@ -338,7 +338,7 @@ def process_location(location_id, bands, mission, limit, temporal_analysis, foll
             temporal_analysis
         )
     except Exception as e:
-        console.print(f"[red]Error starting workflow: {e}[/red]", err=True)
+        console.print(f"[red]Error starting workflow: {e}[/red]", stderr=True)
         raise click.Abort()
 
     if task_id is None:
@@ -385,10 +385,10 @@ def backup_location(location_id, mission, limit, follow_flag, output_json):
             limit
         )
     except ValueError as e:
-        console.print(f"[red]Error: {e}[/red]", err=True)
+        console.print(f"[red]Error: {e}[/red]", stderr=True)
         raise click.Abort()
     except Exception as e:
-        console.print(f"[red]Error starting workflow: {e}[/red]", err=True)
+        console.print(f"[red]Error starting workflow: {e}[/red]", stderr=True)
         raise click.Abort()
 
     if task_id is None:

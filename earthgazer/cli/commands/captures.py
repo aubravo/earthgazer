@@ -48,7 +48,7 @@ def show_capture(capture_id, output_json):
 
     if not capture:
         console = Console()
-        console.print(f"[red]Error: Capture {capture_id} not found[/red]", err=True)
+        console.print(f"[red]Error: Capture {capture_id} not found[/red]", stderr=True)
         raise click.Abort()
 
     if output_json:
@@ -104,7 +104,7 @@ def process_capture(capture_id, bands, bounds, follow_flag, output_json):
         try:
             bounds_tuple = parse_bounds(bounds)
         except ValueError as e:
-            console.print(f"[red]Error: {e}[/red]", err=True)
+            console.print(f"[red]Error: {e}[/red]", stderr=True)
             raise click.Abort()
 
     # Validate capture exists and is backed up
@@ -112,13 +112,13 @@ def process_capture(capture_id, bands, bounds, follow_flag, output_json):
     capture = next((c for c in captures_list if c['id'] == capture_id), None)
 
     if not capture:
-        console.print(f"[red]Error: Capture {capture_id} not found[/red]", err=True)
+        console.print(f"[red]Error: Capture {capture_id} not found[/red]", stderr=True)
         raise click.Abort()
 
     if not capture.get('backed_up'):
         console.print(
             f"[red]Error: Capture {capture_id} is not backed up. Please back it up first.[/red]",
-            err=True
+            stderr=True
         )
         raise click.Abort()
 
@@ -126,7 +126,7 @@ def process_capture(capture_id, bands, bounds, follow_flag, output_json):
     try:
         task_id = run_single_capture_workflow(capture_id, bands_list, bounds_tuple)
     except Exception as e:
-        console.print(f"[red]Error starting workflow: {e}[/red]", err=True)
+        console.print(f"[red]Error starting workflow: {e}[/red]", stderr=True)
         raise click.Abort()
 
     if output_json:
