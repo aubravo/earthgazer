@@ -22,10 +22,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
+# Copy package configuration and application code
+COPY pyproject.toml .
+COPY README.md .
 COPY earthgazer/ ./earthgazer/
 COPY alembic/ ./alembic/
 COPY alembic.ini .
+
+# Install the earthgazer package to register CLI entry points
+RUN pip install --no-cache-dir .
 
 # Create data directories
 RUN mkdir -p /app/data/raw /app/data/features /app/data/processed
