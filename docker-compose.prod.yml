@@ -8,7 +8,7 @@ services:
       dockerfile: Dockerfile.prod
     restart: unless-stopped
     volumes:
-      - ./data:/app/data
+      - ${DATA_PATH:-./data}:/app/data
       - ./earthgazer/definitions:/app/earthgazer/definitions:ro
     environment:
       - EARTHGAZER__CELERY__BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
@@ -68,7 +68,7 @@ services:
     restart: unless-stopped
     command: celery -A earthgazer.celery_app worker --loglevel=info -Q io_queue --concurrency=8 --max-tasks-per-child=50 --hostname=io-worker@%h
     volumes:
-      - ./data:/app/data
+      - ${DATA_PATH:-./data}:/app/data
       - ./earthgazer/definitions:/app/earthgazer/definitions:ro
     environment:
       - EARTHGAZER__CELERY__BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
@@ -101,7 +101,7 @@ services:
     restart: unless-stopped
     command: celery -A earthgazer.celery_app worker --loglevel=info -Q cpu_queue --concurrency=4 --max-tasks-per-child=20 --hostname=cpu-worker@%h
     volumes:
-      - ./data:/app/data
+      - ${DATA_PATH:-./data}:/app/data
       - ./earthgazer/definitions:/app/earthgazer/definitions:ro
     environment:
       - EARTHGAZER__CELERY__BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
@@ -134,7 +134,7 @@ services:
     restart: unless-stopped
     command: celery -A earthgazer.celery_app worker --loglevel=info -Q default --concurrency=4 --max-tasks-per-child=100 --hostname=default-worker@%h
     volumes:
-      - ./data:/app/data
+      - ${DATA_PATH:-./data}:/app/data
       - ./earthgazer/definitions:/app/earthgazer/definitions:ro
     environment:
       - EARTHGAZER__CELERY__BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
@@ -181,6 +181,10 @@ volumes:
     driver: local
   redis-data:
     driver: local
+  # Uncomment to use a named volume for data storage instead of bind mount
+  # earthgazer-data:
+  #   driver: local
+  # Then set: DATA_PATH=earthgazer-data in your .env file
 
 networks:
   earthgazer-net:
