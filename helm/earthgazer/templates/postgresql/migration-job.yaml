@@ -1,0 +1,63 @@
+{{- if .Values.postgresql.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "earthgazer.fullname" . }}-db-migration
+  labels:
+    {{- include "earthgazer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: db-migration
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  template:
+    metadata:
+      labels:
+        {{- include "earthgazer.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: db-migration
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: migration
+        image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Waiting for PostgreSQL to be ready..."
+          until pg_isready -h {{ include "earthgazer.postgresql.host" . }} -p {{ include "earthgazer.postgresql.port" . }} -U {{ .Values.postgresql.auth.username }}; do
+            echo "PostgreSQL is unavailable - sleeping"
+            sleep 2
+          done
+          echo "PostgreSQL is ready - running migrations"
+          alembic upgrade head
+        env:
+        - name: EARTHGAZER__DATABASE__DRIVERNAME
+          value: "postgresql"
+        - name: EARTHGAZER__DATABASE__USERNAME
+          value: {{ .Values.postgresql.auth.username | quote }}
+        - name: EARTHGAZER__DATABASE__PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "earthgazer.postgresql.secretName" . }}
+              key: postgres-password
+        - name: EARTHGAZER__DATABASE__HOST
+          value: {{ include "earthgazer.postgresql.host" . | quote }}
+        - name: EARTHGAZER__DATABASE__PORT
+          value: {{ include "earthgazer.postgresql.port" . | quote }}
+        - name: EARTHGAZER__DATABASE__DATABASE
+          value: {{ include "earthgazer.postgresql.database" . | quote }}
+        {{- if .Values.gcloud.serviceAccount }}
+        - name: EARTHGAZER__GCLOUD__SERVICE_ACCOUNT
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "earthgazer.fullname" . }}-gcloud
+              key: service-account.json
+        {{- end }}
+        {{- if .Values.gcloud.bucketName }}
+        - name: EARTHGAZER__GCLOUD__BUCKET_NAME
+          value: {{ .Values.gcloud.bucketName | quote }}
+        {{- end }}
+{{- end }}

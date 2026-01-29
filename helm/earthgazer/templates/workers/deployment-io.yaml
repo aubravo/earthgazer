@@ -62,6 +62,17 @@ spec:
               secretKeyRef:
                 name: {{ include "earthgazer.postgresql.secretName" . }}
                 key: postgres-password
+          {{- if .Values.redis.auth.enabled }}
+          - name: REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ include "earthgazer.redis.secretName" . }}
+                key: redis-password
+          - name: EARTHGAZER__CELERY__BROKER_URL
+            value: {{ printf "redis://:$(REDIS_PASSWORD)@%s:%s/0" (include "earthgazer.redis.host" .) (include "earthgazer.redis.port" .) | quote }}
+          - name: EARTHGAZER__CELERY__RESULT_BACKEND
+            value: {{ printf "redis://:$(REDIS_PASSWORD)@%s:%s/1" (include "earthgazer.redis.host" .) (include "earthgazer.redis.port" .) | quote }}
+          {{- end }}
           - name: EARTHGAZER__GCLOUD__SERVICE_ACCOUNT
             valueFrom:
               secretKeyRef:

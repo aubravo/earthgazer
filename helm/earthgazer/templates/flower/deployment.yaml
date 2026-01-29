@@ -55,6 +55,15 @@ spec:
           - configMapRef:
               name: {{ include "earthgazer.fullname" . }}-config
         env:
+          {{- if .Values.redis.auth.enabled }}
+          - name: REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ include "earthgazer.redis.secretName" . }}
+                key: redis-password
+          - name: EARTHGAZER__CELERY__BROKER_URL
+            value: {{ printf "redis://:$(REDIS_PASSWORD)@%s:%s/0" (include "earthgazer.redis.host" .) (include "earthgazer.redis.port" .) | quote }}
+          {{- end }}
           - name: FLOWER_BASIC_AUTH
             valueFrom:
               secretKeyRef:
