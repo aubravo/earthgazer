@@ -1,6 +1,7 @@
-# EARTHGAZER
+# earthgazer
 
-Commiting everything back in from scratch because I no longer remember how any of this works.
+![earthgazer logo](https://github.com/aubravo/earthgazer/blob/main/image.jpg?raw=true)
+
 
 ## What's this repo?
 
