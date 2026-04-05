@@ -1,0 +1,639 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  EarthGazer Processing Workflow
+  Format: draw.io / mxGraph XML  (importable into LucidChart via File → Import → draw.io)
+  Generated: 2026-04-05
+-->
+<mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1"
+              connect="1" arrows="1" fold="1" page="1" pageScale="1"
+              pageWidth="1800" pageHeight="1400" math="0" shadow="0">
+  <root>
+    <mxCell id="0" />
+    <mxCell id="1" parent="0" />
+
+    <!-- ═══════════════════════════════════════════════════════
+         DATA STORES  (top row, y = 20)
+    ═══════════════════════════════════════════════════════ -->
+
+    <mxCell id="2" value="Google BigQuery&#xa;Satellite Catalog"
+            style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontStyle=1;verticalLabelPosition=middle;"
+            vertex="1" parent="1">
+      <mxGeometry x="30" y="20" width="155" height="80" as="geometry" />
+    </mxCell>
+
+    <mxCell id="3" value="GCS – Public Bucket&#xa;(Sentinel / Landsat)"
+            style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontStyle=1;"
+            vertex="1" parent="1">
+      <mxGeometry x="240" y="20" width="155" height="80" as="geometry" />
+    </mxCell>
+
+    <mxCell id="4" value="GCS – Project Bucket&#xa;(Backup + Processed)"
+            style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontStyle=1;"
+            vertex="1" parent="1">
+      <mxGeometry x="450" y="20" width="155" height="80" as="geometry" />
+    </mxCell>
+
+    <mxCell id="5" value="PostgreSQL&#xa;earthgazer schema"
+            style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontStyle=1;"
+            vertex="1" parent="1">
+      <mxGeometry x="670" y="20" width="155" height="80" as="geometry" />
+    </mxCell>
+
+    <mxCell id="6" value="Local Filesystem&#xa;data/raw/  data/features/"
+            style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontStyle=1;"
+            vertex="1" parent="1">
+      <mxGeometry x="890" y="20" width="170" height="80" as="geometry" />
+    </mxCell>
+
+    <mxCell id="7" value="Redis&#xa;Broker + Result Backend"
+            style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=1;"
+            vertex="1" parent="1">
+      <mxGeometry x="1130" y="20" width="155" height="80" as="geometry" />
+    </mxCell>
+
+    <!-- ═══════════════════════════════════════════════════════
+         STAGE 1 – DISCOVERY   io_queue
+    ═══════════════════════════════════════════════════════ -->
+
+    <mxCell id="10" value="① Discovery   •   io_queue"
+            style="swimlane;startSize=30;fillColor=#e8f0fe;strokeColor=#4a6fa5;fontStyle=1;fontSize=13;swimlaneLine=1;"
+            vertex="1" parent="1">
+      <mxGeometry x="20" y="145" width="1360" height="115" as="geometry" />
+    </mxCell>
+
+    <mxCell id="11" value="discover_images_task&#xa;──────────────────&#xa;Query BigQuery per Location × Platform&#xa;Spatial + date-range filter&#xa;Dedup against existing CaptureData rows"
+            style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;"
+            vertex="1" parent="10">
+      <mxGeometry x="390" y="35" width="280" height="70" as="geometry" />
+    </mxCell>
+
+    <!-- ═══════════════════════════════════════════════════════
+         STAGE 2 – BACKUP   io_queue · parallel per capture
+    ═══════════════════════════════════════════════════════ -->
+
+    <mxCell id="20" value="② Backup   •   io_queue   •   parallel per capture  [ group() ]"
+            style="swimlane;startSize=30;fillColor=#e8f0fe;strokeColor=#4a6fa5;fontStyle=1;fontSize=13;"
+            vertex="1" parent="1">
+      <mxGeometry x="20" y="310" width="1360" height="115" as="geometry" />
+    </mxCell>
+
+    <mxCell id="21" value="backup_single_capture_task&#xa;──────────────────&#xa;Copy scene files: public GCS → project bucket&#xa;UPDATE CaptureData: backed_up = True"
+            style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;"
+            vertex="1" parent="20">
+      <mxGeometry x="390" y="35" width="280" height="70" as="geometry" />
+    </mxCell>
+
+    <!-- ═══════════════════════════════════════════════════════
+         STAGE 3 – DOWNLOAD BANDS   io_queue · parallel per capture
+    ═══════════════════════════════════════════════════════ -->
+
+    <mxCell id="30" value="③ Download Bands   •   io_queue   •   parallel per capture  [ group() ]"
+            style="swimlane;startSize=30;fillColor=#e8f0fe;strokeColor=#4a6fa5;fontStyle=1;fontSize=13;"
+            vertex="1" parent="1">
+      <mxGeometry x="20" y="475" width="1360" height="115" as="geometry" />
+    </mxCell>
+
+    <mxCell id="31" value="download_bands_task&#xa;──────────────────&#xa;Download B02 · B03 · B04 · B08&#xa;Project GCS → data/raw/{capture_id}/*.tif"
+            style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;"
+            vertex="1" parent="30">
+      <mxGeometry x="390" y="35" width="280" height="70" as="geometry" />
+    </mxCell>
+
+    <!-- ═══════════════════════════════════════════════════════
+         STAGE 4 – STACK & CROP   cpu_queue · per capture
+    ═══════════════════════════════════════════════════════ -->
+
+    <mxCell id="40" value="④ Stack &amp; Crop   •   cpu_queue   •   per capture  [ chain() ]"
+            style="swimlane;startSize=30;fillColor=#fffde7;strokeColor=#f9a825;fontStyle=1;fontSize=13;"
+            vertex="1" parent="1">
+      <mxGeometry x="20" y="640" width="1360" height="145" as="geometry" />
+    </mxCell>
+
+    <mxCell id="41" value="Cached?&#xa;ProcessedImage&#xa;DB lookup"
+            style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;"
+            vertex="1" parent="40">
+      <mxGeometry x="160" y="30" width="140" height="100" as="geometry" />
+    </mxCell>
+
+    <mxCell id="42" value="stack_and_crop_task&#xa;──────────────────&#xa;Load .tif bands → ndarray stack&#xa;Crop to bounding box + normalize&#xa;→ data/features/{id}/stacked.npz&#xa;Upload to GCS  ·  Register ProcessedImage"
+            style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;"
+            vertex="1" parent="40">
+      <mxGeometry x="390" y="25" width="280" height="100" as="geometry" />
+    </mxCell>
+
+    <mxCell id="43" value="stacked.npz&#xa;ready"
+            style="ellipse;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;fontStyle=1;"
+            vertex="1" parent="40">
+      <mxGeometry x="800" y="48" width="120" height="60" as="geometry" />
+    </mxCell>
+
+    <!-- ═══════════════════════════════════════════════════════
+         STAGE 5 – FEATURE EXTRACTION   cpu_queue · NDVI ‖ RGB
+    ═══════════════════════════════════════════════════════ -->
+
+    <mxCell id="50" value="⑤ Feature Extraction   •   cpu_queue   •   NDVI ‖ RGB in parallel  [ group() ]"
+            style="swimlane;startSize=30;fillColor=#fffde7;strokeColor=#f9a825;fontStyle=1;fontSize=13;"
+            vertex="1" parent="1">
+      <mxGeometry x="20" y="840" width="1360" height="185" as="geometry" />
+    </mxCell>
+
+    <!-- NDVI branch -->
+    <mxCell id="51" value="NDVI&#xa;Cached?"
+            style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;"
+            vertex="1" parent="50">
+      <mxGeometry x="60" y="55" width="120" height="90" as="geometry" />
+    </mxCell>
+
+    <mxCell id="53" value="compute_ndvi_task&#xa;──────────────────&#xa;NDVI = (B08 − B04) / (B08 + B04)&#xa;→ data/features/{id}/ndvi.tif&#xa;Upload to GCS  ·  Register ProcessedImage"
+            style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;"
+            vertex="1" parent="50">
+      <mxGeometry x="240" y="45" width="270" height="100" as="geometry" />
+    </mxCell>
+
+    <!-- RGB branch -->
+    <mxCell id="52" value="RGB&#xa;Cached?"
+            style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;"
+            vertex="1" parent="50">
+      <mxGeometry x="700" y="55" width="120" height="90" as="geometry" />
+    </mxCell>
+
+    <mxCell id="54" value="generate_rgb_task&#xa;──────────────────&#xa;B04 → R   B03 → G   B02 → B&#xa;Contrast stretch&#xa;→ data/features/{id}/rgb.tif&#xa;Upload to GCS  ·  Register ProcessedImage"
+            style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;"
+            vertex="1" parent="50">
+      <mxGeometry x="880" y="40" width="270" height="110" as="geometry" />
+    </mxCell>
+
+    <!-- Both features done -->
+    <mxCell id="55" value="All features ready&#xa;(per capture)"
+            style="ellipse;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;fontStyle=1;"
+            vertex="1" parent="50">
+      <mxGeometry x="540" y="105" width="135" height="65" as="geometry" />
+    </mxCell>
+
+    <!-- ═══════════════════════════════════════════════════════
+         STAGE 6 – TEMPORAL ANALYSIS   cpu_queue · chord callback
+    ═══════════════════════════════════════════════════════ -->
+
+    <mxCell id="60" value="⑥ Temporal Analysis   •   cpu_queue   •   chord() callback — all captures complete"
+            style="swimlane;startSize=30;fillColor=#fce4ec;strokeColor=#c62828;fontStyle=1;fontSize=13;"
+            vertex="1" parent="1">
+      <mxGeometry x="20" y="1085" width="1360" height="145" as="geometry" />
+    </mxCell>
+
+    <mxCell id="61" value="temporal_analysis_task&#xa;──────────────────&#xa;Compute mean NDVI per date (time series)&#xa;Fit per-pixel linear trend (slope map)&#xa;→ ndvi_over_time.png&#xa;→ ndvi_trend_map.png"
+            style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;"
+            vertex="1" parent="60">
+      <mxGeometry x="330" y="33" width="280" height="100" as="geometry" />
+    </mxCell>
+
+    <mxCell id="62" value="ndvi_over_time.png&#xa;ndvi_trend_map.png"
+            style="shape=note;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;fontStyle=1;size=18;"
+            vertex="1" parent="60">
+      <mxGeometry x="680" y="43" width="190" height="80" as="geometry" />
+    </mxCell>
+
+
+    <!-- ═══════════════════════════════════════════════════════
+         EDGES
+         Convention:
+           Blue  (#6c8ebf) = data read / input
+           Green (#82b366) = data write / output
+           Purple(#9673a6) = stage-to-stage flow (main pipeline)
+           Orange(#d6b656) = cache branch
+           Red   (#b85450) = Redis task routing (dashed)
+    ═══════════════════════════════════════════════════════ -->
+
+    <!-- BQ → discover_images_task -->
+    <mxCell id="100" value="BigQuery SQL&#xa;(per Location × Platform)"
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;fontColor=#1e3a8a;fontSize=9;exitX=0.5;exitY=1;exitDx=0;exitDy=0;"
+            edge="1" source="2" target="11" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- PG → discover_images_task (active locations) -->
+    <mxCell id="101" value="Active Locations"
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;fontColor=#1e3a8a;fontSize=9;exitX=0.5;exitY=1;exitDx=0;exitDy=0;"
+            edge="1" source="5" target="11" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- discover_images_task → PG (INSERT CaptureData) -->
+    <mxCell id="102" value="INSERT CaptureData (backed_up=False)"
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;fontColor=#14532d;fontSize=9;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;"
+            edge="1" source="11" target="5" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="1420" y="203" />
+          <mxPoint x="1420" y="60" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- discover_images_task → backup_single_capture_task  [main pipeline] -->
+    <mxCell id="103" value="capture_ids  [ group() ]"
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;fontColor=#3b0764;fontSize=10;fontStyle=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;"
+            edge="1" source="11" target="21" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- GCS_PUB → backup_single_capture_task -->
+    <mxCell id="104" value="Source scene files"
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;fontColor=#1e3a8a;fontSize=9;exitX=0.5;exitY=1;exitDx=0;exitDy=0;"
+            edge="1" source="3" target="21" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- backup → GCS_PRV -->
+    <mxCell id="105" value="Copy to project bucket"
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;fontColor=#14532d;fontSize=9;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=1;entryDx=0;entryDy=0;"
+            edge="1" source="21" target="4" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="200" y="373" />
+          <mxPoint x="200" y="100" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- backup → PG (UPDATE backed_up) -->
+    <mxCell id="106" value="UPDATE backed_up=True"
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;fontColor=#14532d;fontSize=9;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=1;entryDx=0;entryDy=0;"
+            edge="1" source="21" target="5" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="1420" y="373" />
+          <mxPoint x="1420" y="100" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- backup → download  [main pipeline] -->
+    <mxCell id="107" value="backed-up capture_ids  [ group() ]"
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;fontColor=#3b0764;fontSize=10;fontStyle=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;"
+            edge="1" source="21" target="31" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- GCS_PRV → download_bands_task -->
+    <mxCell id="108" value="Band .tif files from GCS"
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;fontColor=#1e3a8a;fontSize=9;exitX=0.5;exitY=1;exitDx=0;exitDy=0;"
+            edge="1" source="4" target="31" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- download → FS -->
+    <mxCell id="109" value="data/raw/{id}/*.tif"
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;fontColor=#14532d;fontSize=9;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=1;entryDx=0;entryDy=0;"
+            edge="1" source="31" target="6" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="1420" y="538" />
+          <mxPoint x="1420" y="100" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- download → stack (via cache check)  [main pipeline] -->
+    <mxCell id="110" value="per capture  [ chain() ]"
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;fontColor=#3b0764;fontSize=10;fontStyle=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;"
+            edge="1" source="31" target="41" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- FS → cache check (read stacked.npz if exists) -->
+    <mxCell id="111" value="ProcessedImage lookup"
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;fontColor=#1e3a8a;fontSize=9;exitX=0;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0;entryDx=0;entryDy=0;"
+            edge="1" source="6" target="41" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="780" y="640" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- PG → cache check -->
+    <mxCell id="112" value="ProcessedImage DB check"
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;fontColor=#1e3a8a;fontSize=9;exitX=0.5;exitY=1;exitDx=0;exitDy=0;"
+            edge="1" source="5" target="41" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- cache check → stack_and_crop (No) -->
+    <mxCell id="113" value="No – process"
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;fontColor=#713f12;fontSize=10;"
+            edge="1" source="41" target="42" parent="40">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- cache check → stacked ready (Yes) -->
+    <mxCell id="114" value="Yes – use cached path"
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;fontColor=#713f12;fontSize=10;"
+            edge="1" source="41" target="43" parent="40">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="230" y="145" />
+          <mxPoint x="860" y="145" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- stack_and_crop → stacked ready -->
+    <mxCell id="115" value=""
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;"
+            edge="1" source="42" target="43" parent="40">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- stack_and_crop → FS (write stacked.npz) -->
+    <mxCell id="116" value="stacked.npz"
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;fontColor=#14532d;fontSize=9;"
+            edge="1" source="42" target="6" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="1420" y="720" />
+          <mxPoint x="1420" y="100" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- stack_and_crop → GCS_PRV (upload) -->
+    <mxCell id="117" value="Upload stacked.npz"
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;fontColor=#14532d;fontSize=9;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=1;entryDx=0;entryDy=0;"
+            edge="1" source="42" target="4" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="200" y="720" />
+          <mxPoint x="200" y="100" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- stack_and_crop → PG (register ProcessedImage stacked) -->
+    <mxCell id="118" value="Register ProcessedImage (stacked)"
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;fontColor=#14532d;fontSize=9;"
+            edge="1" source="42" target="5" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="747" y="760" />
+          <mxPoint x="747" y="100" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- stacked ready → NDVI cache  [main pipeline – parallel branch] -->
+    <mxCell id="119" value="group() – NDVI branch"
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;fontColor=#3b0764;fontSize=9;fontStyle=1;"
+            edge="1" source="43" target="51" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- stacked ready → RGB cache  [main pipeline – parallel branch] -->
+    <mxCell id="120" value="group() – RGB branch"
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;fontColor=#3b0764;fontSize=9;fontStyle=1;"
+            edge="1" source="43" target="52" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- FS → compute_ndvi (reads stacked.npz) -->
+    <mxCell id="123" value="stacked.npz"
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;fontColor=#1e3a8a;fontSize=9;exitX=0.5;exitY=1;exitDx=0;exitDy=0;"
+            edge="1" source="6" target="53" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- FS → generate_rgb (reads stacked.npz) -->
+    <mxCell id="124" value="stacked.npz"
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;fontColor=#1e3a8a;fontSize=9;exitX=0.5;exitY=1;exitDx=0;exitDy=0;"
+            edge="1" source="6" target="54" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- NDVI cache check → compute_ndvi (No) -->
+    <mxCell id="121" value="No"
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;fontColor=#713f12;fontSize=10;"
+            edge="1" source="51" target="53" parent="50">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- RGB cache check → generate_rgb (No) -->
+    <mxCell id="122" value="No"
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;fontColor=#713f12;fontSize=10;"
+            edge="1" source="52" target="54" parent="50">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- NDVI cache Yes → features done -->
+    <mxCell id="133" value="Yes – cached"
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;fontColor=#713f12;fontSize=9;"
+            edge="1" source="51" target="55" parent="50">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="120" y="170" />
+          <mxPoint x="607" y="170" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- RGB cache Yes → features done -->
+    <mxCell id="134" value="Yes – cached"
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#d6b656;fontColor=#713f12;fontSize=9;"
+            edge="1" source="52" target="55" parent="50">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="760" y="170" />
+          <mxPoint x="607" y="170" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- compute_ndvi → features done -->
+    <mxCell id="131" value=""
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;"
+            edge="1" source="53" target="55" parent="50">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- generate_rgb → features done -->
+    <mxCell id="132" value=""
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;"
+            edge="1" source="54" target="55" parent="50">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- compute_ndvi → FS (write ndvi.tif) -->
+    <mxCell id="125" value="ndvi.tif"
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;fontColor=#14532d;fontSize=9;"
+            edge="1" source="53" target="6" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="1420" y="940" />
+          <mxPoint x="1420" y="100" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- generate_rgb → FS (write rgb.tif) -->
+    <mxCell id="126" value="rgb.tif"
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;fontColor=#14532d;fontSize=9;"
+            edge="1" source="54" target="6" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="1450" y="960" />
+          <mxPoint x="1450" y="60" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- compute_ndvi → GCS_PRV (upload) -->
+    <mxCell id="127" value="Upload ndvi.tif"
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;fontColor=#14532d;fontSize=9;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=1;entryDx=0;entryDy=0;"
+            edge="1" source="53" target="4" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="180" y="940" />
+          <mxPoint x="180" y="100" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- generate_rgb → GCS_PRV (upload) -->
+    <mxCell id="128" value="Upload rgb.tif"
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;fontColor=#14532d;fontSize=9;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=1;entryDx=0;entryDy=0;"
+            edge="1" source="54" target="4" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="160" y="960" />
+          <mxPoint x="160" y="100" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- compute_ndvi → PG (register) -->
+    <mxCell id="129" value="Register ProcessedImage (ndvi)"
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;fontColor=#14532d;fontSize=9;"
+            edge="1" source="53" target="5" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="727" y="950" />
+          <mxPoint x="727" y="100" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- generate_rgb → PG (register) -->
+    <mxCell id="130" value="Register ProcessedImage (rgb)"
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#82b366;fontColor=#14532d;fontSize=9;"
+            edge="1" source="54" target="5" parent="1">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="707" y="970" />
+          <mxPoint x="707" y="100" />
+        </Array>
+      </mxGeometry>
+    </mxCell>
+
+    <!-- features done → temporal analysis  [main pipeline · chord] -->
+    <mxCell id="135" value="chord() – wait for ALL captures"
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#c62828;fontColor=#c62828;fontSize=10;fontStyle=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;"
+            edge="1" source="55" target="61" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- FS → temporal_analysis (reads all ndvi.tif) -->
+    <mxCell id="136" value="data/features/*/ndvi.tif"
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#6c8ebf;fontColor=#1e3a8a;fontSize=9;exitX=0.5;exitY=1;exitDx=0;exitDy=0;"
+            edge="1" source="6" target="61" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- temporal_analysis → outputs -->
+    <mxCell id="137" value=""
+            style="edgeStyle=orthogonalEdgeStyle;html=1;strokeColor=#9673a6;"
+            edge="1" source="61" target="62" parent="60">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- ═══ Redis dashed routing lines (to each task) ═══ -->
+
+    <mxCell id="140" value="task routing / results"
+            style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;strokeColor=#b85450;fontColor=#b85450;fontSize=8;exitX=0.5;exitY=1;exitDx=0;exitDy=0;"
+            edge="1" source="7" target="11" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <mxCell id="141" value=""
+            style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;strokeColor=#b85450;fontSize=8;"
+            edge="1" source="7" target="21" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <mxCell id="142" value=""
+            style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;strokeColor=#b85450;fontSize=8;"
+            edge="1" source="7" target="31" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <mxCell id="143" value=""
+            style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;strokeColor=#b85450;fontSize=8;"
+            edge="1" source="7" target="42" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <mxCell id="144" value=""
+            style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;strokeColor=#b85450;fontSize=8;"
+            edge="1" source="7" target="53" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <mxCell id="145" value=""
+            style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;strokeColor=#b85450;fontSize=8;"
+            edge="1" source="7" target="54" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <mxCell id="146" value=""
+            style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;strokeColor=#b85450;fontSize=8;"
+            edge="1" source="7" target="61" parent="1">
+      <mxGeometry relative="1" as="geometry" />
+    </mxCell>
+
+    <!-- ═══ LEGEND ═══ -->
+
+    <mxCell id="200" value="Legend"
+            style="swimlane;startSize=25;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;fontSize=11;"
+            vertex="1" parent="1">
+      <mxGeometry x="20" y="1285" width="560" height="95" as="geometry" />
+    </mxCell>
+
+    <mxCell id="201" value="Celery Task"
+            style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;"
+            vertex="1" parent="200">
+      <mxGeometry x="10" y="33" width="100" height="40" as="geometry" />
+    </mxCell>
+
+    <mxCell id="202" value="Data Store"
+            style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;"
+            vertex="1" parent="200">
+      <mxGeometry x="125" y="30" width="100" height="45" as="geometry" />
+    </mxCell>
+
+    <mxCell id="203" value="Cache Decision"
+            style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;"
+            vertex="1" parent="200">
+      <mxGeometry x="240" y="25" width="100" height="55" as="geometry" />
+    </mxCell>
+
+    <mxCell id="204" value="Stage Output / Milestone"
+            style="ellipse;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;"
+            vertex="1" parent="200">
+      <mxGeometry x="355" y="33" width="90" height="40" as="geometry" />
+    </mxCell>
+
+    <mxCell id="205" value="Redis Infra"
+            style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;"
+            vertex="1" parent="200">
+      <mxGeometry x="460" y="30" width="90" height="45" as="geometry" />
+    </mxCell>
+
+  </root>
+</mxGraphModel>
