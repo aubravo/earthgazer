@@ -4,6 +4,7 @@ from sqlalchemy import Boolean
 from sqlalchemy import DateTime
 from sqlalchemy import Enum
 from sqlalchemy import Float
+from sqlalchemy import Index
 from sqlalchemy import Integer
 from sqlalchemy import String
 from sqlalchemy.orm import DeclarativeBase
@@ -37,6 +38,13 @@ class ProcessingJobStatus(enum.Enum):
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
     PARTIAL = "PARTIAL"
+
+
+class ImageType(enum.Enum):
+    NDVI = "ndvi"
+    RGB = "rgb"
+    STACKED = "stacked"
+
 
 class Base(DeclarativeBase):
     def add(self, session):
@@ -140,3 +148,39 @@ class ProcessingJob(Base):
     completed_tasks: Mapped[int] = mapped_column(Integer, default=0)
     failed_tasks: Mapped[int] = mapped_column(Integer, default=0)
     job_metadata: Mapped[str | None] = mapped_column(String(2000), default=None)  # JSON string for additional info
+
+
+class ProcessedImage(Base):
+    """Track processed satellite images with storage locations and metadata."""
+    __tablename__ = "processed_images"
+    __table_args__ = (
+        Index('ix_processed_images_capture_type', 'capture_id', 'image_type'),
+        Index('ix_processed_images_capture_available', 'capture_id', 'local_available'),
+        {"schema": "earthgazer"}
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    capture_id: Mapped[int] = mapped_column(Integer, index=True, nullable=False)
+    image_type: Mapped[str] = mapped_column(Enum(ImageType), index=True, nullable=False)
+
+    # Storage locations
+    local_path: Mapped[str] = mapped_column(String(500), nullable=False)
+    gcloud_path: Mapped[str | None] = mapped_column(String(500), default=None)
+
+    # Processing metadata (stored as JSON strings)
+    bands_used: Mapped[str | None] = mapped_column(String(200), default=None)  # JSON array: ["B02", "B03", "B04", "B08"]
+    bounds_used: Mapped[str | None] = mapped_column(String(200), default=None)  # JSON: {"min_lon": ..., "min_lat": ..., ...}
+    processing_version: Mapped[str] = mapped_column(String(50), default="1.0")
+
+    # File metadata
+    file_size_bytes: Mapped[int | None] = mapped_column(Integer, default=None)
+    file_hash: Mapped[str | None] = mapped_column(String(64), default=None)  # SHA256 hash
+
+    # Status tracking
+    local_available: Mapped[bool] = mapped_column(Boolean, default=True)
+    gcloud_available: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # Timestamps
+    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=False), server_default="now()")
+    uploaded_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=False), default=None)
+    last_verified: Mapped[DateTime | None] = mapped_column(DateTime(timezone=False), default=None)
