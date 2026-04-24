@@ -8,6 +8,7 @@ CPU-bound tasks into different queues.
 
 import logging
 from celery import Celery
+from earthgazer import __version__, __build__
 from earthgazer.settings import EarthGazerSettings
 
 logger = logging.getLogger(__name__)
@@ -59,6 +60,9 @@ app.conf.update(
     task_send_sent_event=True,
 )
 
+logger.info(f"=" * 60)
+logger.info(f"EarthGazer v{__version__} (build: {__build__})")
+logger.info(f"=" * 60)
 logger.info(f"Celery app initialized with broker: {settings.celery.broker_url}")
 logger.info(f"Task queues configured: io_queue, cpu_queue, default")
 
