@@ -13,10 +13,9 @@ import numpy as np
 import pandas as pd
 import rasterio
 from sklearn.linear_model import LinearRegression
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
 
 from earthgazer.database.definitions import CaptureData
+from earthgazer.database.session import get_session
 from earthgazer.settings import EarthGazerSettings
 
 logger = logging.getLogger(__name__)
@@ -47,10 +46,9 @@ def compute_ndvi_time_series(
         logger.warning("No NDVI files found")
         return pd.DataFrame()
 
-    engine = create_engine(settings.database.url, echo=False)
     records = []
-
-    with Session(engine) as session:
+    session = next(get_session())
+    try:
         for file in ndvi_files:
             logger.debug(f"Processing {file}")
 
@@ -82,6 +80,8 @@ def compute_ndvi_time_series(
                 "sensing_date": sensing_date,
                 "mean_ndvi": mean_ndvi
             })
+    finally:
+        session.close()
 
     # Create DataFrame
     df = pd.DataFrame(records).sort_values("sensing_date")
@@ -132,12 +132,12 @@ def compute_ndvi_trend_map(
         logger.warning("No NDVI files found")
         return np.array([])
 
-    engine = create_engine(settings.database.url, echo=False)
     years = []
     stack = []
     meta_ref = None
 
-    with Session(engine) as session:
+    session = next(get_session())
+    try:
         for file in ndvi_files:
             # Extract capture ID
             match = re.search(r'(\d+)\.tif', file)
@@ -163,6 +163,8 @@ def compute_ndvi_trend_map(
                         meta_ref = src.meta
 
                     stack.append(src.read(1))
+    finally:
+        session.close()
 
     if not stack:
         logger.warning("No valid NDVI data loaded")

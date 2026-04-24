@@ -47,7 +47,12 @@ def compute_ndvi_from_stack(
     # Clip to valid range
     ndvi = np.clip(ndvi, -1, 1)
 
-    logger.info(f"NDVI computed. Range: [{np.nanmin(ndvi):.3f}, {np.nanmax(ndvi):.3f}], Mean: {np.nanmean(ndvi):.3f}")
+    # Log statistics if we have valid data
+    valid_count = np.count_nonzero(~np.isnan(ndvi))
+    if valid_count > 0:
+        logger.info(f"NDVI computed. Range: [{np.nanmin(ndvi):.3f}, {np.nanmax(ndvi):.3f}], Mean: {np.nanmean(ndvi):.3f}")
+    else:
+        logger.warning(f"NDVI computed but contains no valid data (all NaN)")
 
     return ndvi
 
@@ -88,7 +93,12 @@ def create_rgb_from_stack(
 
     def stretch(band):
         """Apply percentile stretch for contrast enhancement."""
-        p2, p98 = np.percentile(band, (2, 98))
+        # Handle empty or all-nan arrays
+        valid_data = band[~np.isnan(band)]
+        if valid_data.size == 0:
+            logger.warning("Band has no valid data for stretching")
+            return np.zeros_like(band)
+        p2, p98 = np.percentile(valid_data, (2, 98))
         return np.clip((band - p2) / (p98 - p2 + 1e-10), 0, 1)
 
     # Stack RGB channels

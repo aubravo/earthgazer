@@ -9,11 +9,9 @@ import logging
 from typing import List, Optional, Tuple
 
 from celery import chain, group, chord
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
 
 from earthgazer.database.definitions import Location, CaptureData
-from earthgazer.settings import EarthGazerSettings
+from earthgazer.database.session import get_session
 from earthgazer.tasks import (
     discover_images_task,
     backup_capture_task,
@@ -38,20 +36,21 @@ def get_location_bounds(location_id: int) -> Tuple[float, float, float, float]:
     Returns:
         Tuple of (min_lon, min_lat, max_lon, max_lat)
     """
-    settings = EarthGazerSettings()
-    engine = create_engine(settings.database.url, echo=False)
-
-    with Session(engine) as session:
+    session = next(get_session())
+    try:
         location = session.query(Location).where(Location.id == location_id).first()
         if location is None:
             raise ValueError(f"Location {location_id} not found")
         return location.bounds
+    finally:
+        session.close()
 
 
 def process_single_capture_workflow(
     capture_id: int,
     bands: List[str] = None,
-    bounds: Tuple[float, float, float, float] = None
+    bounds: Tuple[float, float, float, float] = None,
+    force: bool = False
 ):
     """
     Workflow to process a single capture through the entire pipeline.
@@ -66,6 +65,7 @@ def process_single_capture_workflow(
         capture_id: CaptureData ID to process
         bands: List of band identifiers (default: ["B02", "B03", "B04", "B08"])
         bounds: Geographic bounds for cropping (min_lon, min_lat, max_lon, max_lat)
+        force: Force reprocessing even if outputs exist
 
     Returns:
         AsyncResult for the workflow
@@ -73,7 +73,7 @@ def process_single_capture_workflow(
     if bands is None:
         bands = ["B02", "B03", "B04", "B08"]
 
-    logger.info(f"Starting workflow for capture {capture_id}")
+    logger.info(f"Starting workflow for capture {capture_id} (force={force})")
 
     # Build workflow chain
     workflow = chain(
@@ -81,12 +81,12 @@ def process_single_capture_workflow(
         download_bands_task.si(capture_id, bands),
 
         # Step 2: Stack and crop
-        stack_and_crop_task.si(capture_id, bands, bounds),
+        stack_and_crop_task.si(capture_id, bands, bounds, force),
 
         # Step 3: Compute NDVI and RGB in parallel
         group(
-            compute_ndvi_task.si(capture_id, bands),
-            generate_rgb_task.si(capture_id, bands)
+            compute_ndvi_task.si(capture_id, bands, bounds, force),
+            generate_rgb_task.si(capture_id, bands, bounds, force)
         )
     )
 
@@ -101,7 +101,8 @@ def process_multiple_captures_workflow(
     capture_ids: List[int],
     bands: List[str] = None,
     bounds: Tuple[float, float, float, float] = None,
-    run_temporal_analysis: bool = True
+    run_temporal_analysis: bool = True,
+    force: bool = False
 ):
     """
     Workflow to process multiple captures in parallel.
@@ -118,6 +119,7 @@ def process_multiple_captures_workflow(
         bands: List of band identifiers (default: ["B02", "B03", "B04", "B08"])
         bounds: Geographic bounds for cropping
         run_temporal_analysis: Whether to run temporal analysis after processing
+        force: Force reprocessing even if outputs exist
 
     Returns:
         AsyncResult for the workflow
@@ -125,7 +127,7 @@ def process_multiple_captures_workflow(
     if bands is None:
         bands = ["B02", "B03", "B04", "B08"]
 
-    logger.info(f"Starting workflow for {len(capture_ids)} captures with individual tasks per step")
+    logger.info(f"Starting workflow for {len(capture_ids)} captures with individual tasks per step (force={force})")
 
     # Create individual task chains for each capture
     # Each step will be a separate Celery task that can run on any worker
@@ -135,12 +137,12 @@ def process_multiple_captures_workflow(
         # Create a chain for this specific capture
         # Each task in the chain is independent and can be distributed
         capture_chain = chain(
-            download_bands_task.s(capture_id, bands),
-            stack_and_crop_task.s(capture_id, bands, bounds),
+            download_bands_task.si(capture_id, bands),
+            stack_and_crop_task.si(capture_id, bands, bounds, force),
             # After stacking, run NDVI and RGB in parallel
             group(
-                compute_ndvi_task.s(capture_id, bands),
-                generate_rgb_task.s(capture_id, bands)
+                compute_ndvi_task.si(capture_id, bands, bounds, force),
+                generate_rgb_task.si(capture_id, bands, bounds, force)
             )
         )
         all_processing_tasks.append(capture_chain)
@@ -211,7 +213,8 @@ def full_pipeline_workflow(
     location_ids: Optional[List[int]] = None,
     bands: List[str] = None,
     bounds: Tuple[float, float, float, float] = None,
-    mission_filter: Optional[str] = "SENTINEL-2A"
+    mission_filter: Optional[str] = "SENTINEL-2A",
+    force: bool = False
 ):
     """
     Complete end-to-end workflow: discovery → backup → processing → analysis.
@@ -230,6 +233,7 @@ def full_pipeline_workflow(
         bands: List of band identifiers (default: ["B02", "B03", "B04", "B08"])
         bounds: Geographic bounds for cropping
         mission_filter: Filter captures by mission (e.g., "SENTINEL-2A")
+        force: Force reprocessing even if outputs exist
 
     Returns:
         AsyncResult for the workflow
@@ -237,7 +241,7 @@ def full_pipeline_workflow(
     if bands is None:
         bands = ["B02", "B03", "B04", "B08"]
 
-    logger.info("Starting full pipeline workflow with per-capture task distribution")
+    logger.info(f"Starting full pipeline workflow with per-capture task distribution (force={force})")
 
     # Step 1: Discovery
     logger.info("Step 1: Running discovery...")
@@ -264,10 +268,8 @@ def full_pipeline_workflow(
     logger.info(f"All backups completed")
 
     # Step 3: Query backed-up captures (optionally filtered by mission)
-    settings = EarthGazerSettings()
-    engine = create_engine(settings.database.url, echo=False)
-
-    with Session(engine) as session:
+    session = next(get_session())
+    try:
         query = session.query(CaptureData).where(CaptureData.backed_up == True)
 
         if mission_filter:
@@ -275,6 +277,8 @@ def full_pipeline_workflow(
 
         captures = query.all()
         capture_ids = [c.id for c in captures]
+    finally:
+        session.close()
 
     logger.info(f"Step 3: Found {len(capture_ids)} backed-up captures to process")
 
@@ -285,7 +289,8 @@ def full_pipeline_workflow(
             capture_ids,
             bands,
             bounds,
-            run_temporal_analysis=True
+            run_temporal_analysis=True,
+            force=force
         )
         return processing_result
     else:
@@ -297,7 +302,8 @@ def reprocess_existing_captures_workflow(
     mission_filter: Optional[str] = "SENTINEL-2A",
     bands: List[str] = None,
     bounds: Tuple[float, float, float, float] = None,
-    limit: Optional[int] = None
+    limit: Optional[int] = None,
+    force: bool = False
 ):
     """
     Workflow to reprocess existing backed-up captures.
@@ -310,6 +316,7 @@ def reprocess_existing_captures_workflow(
         bands: List of band identifiers (default: ["B02", "B03", "B04", "B08"])
         bounds: Geographic bounds for cropping
         limit: Optional limit on number of captures to process
+        force: Force reprocessing even if outputs exist
 
     Returns:
         AsyncResult for the workflow
@@ -317,13 +324,11 @@ def reprocess_existing_captures_workflow(
     if bands is None:
         bands = ["B02", "B03", "B04", "B08"]
 
-    logger.info("Starting reprocessing workflow for existing captures")
+    logger.info(f"Starting reprocessing workflow for existing captures (force={force})")
 
     # Get backed-up captures
-    settings = EarthGazerSettings()
-    engine = create_engine(settings.database.url, echo=False)
-
-    with Session(engine) as session:
+    session = next(get_session())
+    try:
         query = session.query(CaptureData).where(CaptureData.backed_up == True)
 
         if mission_filter:
@@ -334,6 +339,8 @@ def reprocess_existing_captures_workflow(
 
         captures = query.all()
         capture_ids = [c.id for c in captures]
+    finally:
+        session.close()
 
     logger.info(f"Reprocessing {len(capture_ids)} captures")
 
@@ -342,7 +349,8 @@ def reprocess_existing_captures_workflow(
             capture_ids,
             bands,
             bounds,
-            run_temporal_analysis=True
+            run_temporal_analysis=True,
+            force=force
         )
     else:
         logger.warning("No captures found to reprocess")
@@ -354,7 +362,8 @@ def process_location_captures_workflow(
     bands: List[str] = None,
     mission_filter: Optional[str] = None,
     limit: Optional[int] = None,
-    run_temporal_analysis: bool = True
+    run_temporal_analysis: bool = True,
+    force: bool = False
 ):
     """
     Workflow to process all backed-up captures for a specific location.
@@ -373,6 +382,7 @@ def process_location_captures_workflow(
         mission_filter: Optional filter by mission (e.g., "SENTINEL-2A")
         limit: Optional limit on number of captures to process
         run_temporal_analysis: Whether to run temporal analysis after processing
+        force: Force reprocessing even if outputs exist
 
     Returns:
         AsyncResult for the workflow
@@ -380,17 +390,15 @@ def process_location_captures_workflow(
     if bands is None:
         bands = ["B02", "B03", "B04", "B08"]
 
-    logger.info(f"Starting workflow for location {location_id}")
+    logger.info(f"Starting workflow for location {location_id} (force={force})")
 
     # Get location bounds
     bounds = get_location_bounds(location_id)
     logger.info(f"Using location bounds: {bounds}")
 
     # Get backed-up captures
-    settings = EarthGazerSettings()
-    engine = create_engine(settings.database.url, echo=False)
-
-    with Session(engine) as session:
+    session = next(get_session())
+    try:
         query = session.query(CaptureData).where(CaptureData.backed_up == True)
 
         if mission_filter:
@@ -403,6 +411,8 @@ def process_location_captures_workflow(
 
         captures = query.all()
         capture_ids = [c.id for c in captures]
+    finally:
+        session.close()
 
     logger.info(f"Found {len(capture_ids)} backed-up captures to process")
 
@@ -411,7 +421,8 @@ def process_location_captures_workflow(
             capture_ids,
             bands,
             bounds,
-            run_temporal_analysis=run_temporal_analysis
+            run_temporal_analysis=run_temporal_analysis,
+            force=force
         )
     else:
         logger.warning("No captures found to process for location")

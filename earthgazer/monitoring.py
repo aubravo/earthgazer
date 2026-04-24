@@ -12,6 +12,7 @@ from typing import Optional
 from celery import signals
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
+from sqlalchemy.pool import QueuePool
 
 from earthgazer.database.definitions import TaskExecution, TaskStatus
 from earthgazer.settings import EarthGazerSettings
@@ -21,6 +22,26 @@ logger = logging.getLogger(__name__)
 
 # Global flag to enable/disable database tracking
 ENABLE_DB_TRACKING = True
+
+# Shared database engine with connection pooling (lazy initialization)
+_engine = None
+
+
+def get_engine():
+    """Get or create the shared database engine with connection pooling."""
+    global _engine
+    if _engine is None:
+        settings = EarthGazerSettings()
+        _engine = create_engine(
+            settings.database.url,
+            echo=False,
+            poolclass=QueuePool,
+            pool_size=2,
+            max_overflow=3,
+            pool_pre_ping=True,
+            pool_recycle=300,
+        )
+    return _engine
 
 
 def get_capture_id_from_task(task, args, kwargs) -> Optional[int]:
@@ -56,20 +77,17 @@ def task_prerun_handler(sender=None, task_id=None, task=None, args=None, kwargs=
     logger.info(f"Task {task.name}[{task_id}] starting", extra={
         'task_id': task_id,
         'task_name': task.name,
-        'args': args,
-        'kwargs': kwargs,
+        'task_args': args,
+        'task_kwargs': kwargs,
     })
 
     if not ENABLE_DB_TRACKING:
         return
 
     try:
-        settings = EarthGazerSettings()
-        engine = create_engine(settings.database.url, echo=False)
-
         capture_id = get_capture_id_from_task(task, args, kwargs)
 
-        with Session(engine) as session:
+        with Session(get_engine()) as session:
             # Check if task execution already exists (for retries)
             existing = session.query(TaskExecution).filter_by(task_id=task_id).first()
 
@@ -117,10 +135,7 @@ def task_postrun_handler(sender=None, task_id=None, task=None, args=None, kwargs
         return
 
     try:
-        settings = EarthGazerSettings()
-        engine = create_engine(settings.database.url, echo=False)
-
-        with Session(engine) as session:
+        with Session(get_engine()) as session:
             task_exec = session.query(TaskExecution).filter_by(task_id=task_id).first()
 
             if task_exec:
@@ -154,10 +169,7 @@ def task_failure_handler(sender=None, task_id=None, exception=None, args=None,
         return
 
     try:
-        settings = EarthGazerSettings()
-        engine = create_engine(settings.database.url, echo=False)
-
-        with Session(engine) as session:
+        with Session(get_engine()) as session:
             task_exec = session.query(TaskExecution).filter_by(task_id=task_id).first()
 
             if task_exec:
@@ -188,10 +200,7 @@ def task_retry_handler(sender=None, task_id=None, reason=None, einfo=None, **ext
         return
 
     try:
-        settings = EarthGazerSettings()
-        engine = create_engine(settings.database.url, echo=False)
-
-        with Session(engine) as session:
+        with Session(get_engine()) as session:
             task_exec = session.query(TaskExecution).filter_by(task_id=task_id).first()
 
             if task_exec:
@@ -226,10 +235,7 @@ def task_revoked_handler(sender=None, request=None, terminated=None, signum=None
         return
 
     try:
-        settings = EarthGazerSettings()
-        engine = create_engine(settings.database.url, echo=False)
-
-        with Session(engine) as session:
+        with Session(get_engine()) as session:
             task_exec = session.query(TaskExecution).filter_by(task_id=task_id).first()
 
             if task_exec:

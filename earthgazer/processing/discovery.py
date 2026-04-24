@@ -9,10 +9,9 @@ from typing import List
 
 from google.cloud import bigquery
 from google.oauth2 import service_account
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
 
 from earthgazer.database.definitions import Location, CaptureData
+from earthgazer.database.session import get_session
 from earthgazer.settings import EarthGazerSettings
 
 logger = logging.getLogger(__name__)
@@ -46,13 +45,13 @@ def check_for_new_images(
     # Load definitions
     platforms = load_platform_definitions()
 
-    # Initialize database connection
-    engine = create_engine(settings.database.url, echo=False)
-
     # Get locations if not provided
     if locations is None:
-        with Session(engine) as session:
+        session = next(get_session())
+        try:
             locations = session.query(Location).where(Location.active).all()
+        finally:
+            session.close()
 
     logger.info(f"Loaded {len(locations)} locations from the database")
 
@@ -104,7 +103,8 @@ def check_for_new_images(
     bigquery_client = bigquery.Client(credentials=service_account_creds)
     new_capture_ids = []
 
-    with Session(engine) as session:
+    session = next(get_session())
+    try:
         for query in queries:
             try:
                 for result in bigquery_client.query(query):
@@ -146,6 +146,8 @@ def check_for_new_images(
             except Exception as e:
                 logger.error(f"Error executing query: {e}")
                 continue
+    finally:
+        session.close()
 
     logger.info(f"Discovery complete. Added {len(new_capture_ids)} new captures")
     return new_capture_ids

@@ -10,10 +10,10 @@ from typing import List, Optional
 
 from google.cloud import storage
 from google.oauth2 import service_account
-from sqlalchemy import create_engine, or_
-from sqlalchemy.orm import Session
+from sqlalchemy import or_
 
 from earthgazer.database.definitions import CaptureData
+from earthgazer.database.session import get_session
 from earthgazer.settings import EarthGazerSettings
 
 logger = logging.getLogger(__name__)
@@ -45,10 +45,9 @@ def backup_capture_to_project_bucket(
     storage_client = storage.Client(credentials=service_account_creds)
     destination_bucket = storage_client.bucket(settings.gcloud.bucket_name)
 
-    engine = create_engine(settings.database.url, echo=False)
     backed_up_ids = []
-
-    with Session(engine) as session:
+    session = next(get_session())
+    try:
         # Build query for captures to backup
         query = session.query(CaptureData).where(
             CaptureData.backed_up == False,
@@ -101,6 +100,8 @@ def backup_capture_to_project_bucket(
             except Exception as e:
                 logger.error(f"Error backing up capture ID {data.id}: {e}")
                 continue
+    finally:
+        session.close()
 
     logger.info(f"Backup complete. Backed up {len(backed_up_ids)} captures")
     return backed_up_ids
@@ -129,9 +130,9 @@ def download_capture_bands(
     storage_client = storage.Client(credentials=service_account_creds)
     bucket = storage_client.bucket(settings.gcloud.bucket_name)
 
-    engine = create_engine(settings.database.url, echo=False)
-
-    with Session(engine) as session:
+    # Query capture data
+    session = next(get_session())
+    try:
         data = session.query(CaptureData).where(CaptureData.id == capture_id).first()
 
         if not data:
@@ -142,31 +143,35 @@ def download_capture_bands(
             logger.error(f"Capture data ID {capture_id} has not been backed up yet")
             return None
 
-        backup_blob_base_path = f"capture_data/{capture_id}/"
-        logger.debug(f"Searching for files in {settings.gcloud.bucket_name}/{backup_blob_base_path}")
+        backed_up = data.backed_up
+    finally:
+        session.close()
 
-        # Create local directory
-        file_path = Path(f"./data/raw/{capture_id}/")
-        file_path.mkdir(parents=True, exist_ok=True)
+    backup_blob_base_path = f"capture_data/{capture_id}/"
+    logger.debug(f"Searching for files in {settings.gcloud.bucket_name}/{backup_blob_base_path}")
 
-        downloaded_files = 0
-        for blob in storage_client.list_blobs(bucket, prefix=backup_blob_base_path):
-            # Check if blob matches requested bands
-            if any(blob.name.endswith(f"_{band}.TIF") or blob.name.endswith(f"_{band}.jp2") for band in bands):
-                file_extension = blob.name.split(".")[-1]
-                detected_band = re.search(r"_(B[0-9A]{1,2}|MTL)\.", blob.name)
+    # Create local directory
+    file_path = Path(f"./data/raw/{capture_id}/")
+    file_path.mkdir(parents=True, exist_ok=True)
 
-                if detected_band:
-                    band_id = detected_band.group(1)
-                    local_file_path = file_path / f"{band_id}.{file_extension}"
+    downloaded_files = 0
+    for blob in storage_client.list_blobs(bucket, prefix=backup_blob_base_path):
+        # Check if blob matches requested bands
+        if any(blob.name.endswith(f"_{band}.TIF") or blob.name.endswith(f"_{band}.jp2") for band in bands):
+            file_extension = blob.name.split(".")[-1]
+            detected_band = re.search(r"_(B[0-9A]{1,2}|MTL)\.", blob.name)
 
-                    logger.debug(f"Downloading band {band_id} from {blob.name}")
-                    blob.download_to_filename(local_file_path)
-                    downloaded_files += 1
+            if detected_band:
+                band_id = detected_band.group(1)
+                local_file_path = file_path / f"{band_id}.{file_extension}"
 
-        if downloaded_files > 0:
-            logger.info(f"Downloaded {downloaded_files} bands for capture ID {capture_id}")
-            return str(file_path)
-        else:
-            logger.warning(f"No bands downloaded for capture ID {capture_id}")
-            return None
+                logger.debug(f"Downloading band {band_id} from {blob.name}")
+                blob.download_to_filename(local_file_path)
+                downloaded_files += 1
+
+    if downloaded_files > 0:
+        logger.info(f"Downloaded {downloaded_files} bands for capture ID {capture_id}")
+        return str(file_path)
+    else:
+        logger.warning(f"No bands downloaded for capture ID {capture_id}")
+        return None
