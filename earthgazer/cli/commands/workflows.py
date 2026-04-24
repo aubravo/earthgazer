@@ -53,9 +53,10 @@ def discover(follow_flag, output_json):
 @click.option('--capture-id', required=True, type=int, help='Capture ID to process')
 @click.option('--bands', default='B02,B03,B04,B08', help='Comma-separated band list')
 @click.option('--bounds', help='Bounds: min_lon,min_lat,max_lon,max_lat')
+@click.option('--force', is_flag=True, help='Force reprocessing even if outputs exist')
 @click.option('--follow', 'follow_flag', is_flag=True, help='Follow task execution')
 @click.option('--json', 'output_json', is_flag=True, help='Output as JSON')
-def process(capture_id, bands, bounds, follow_flag, output_json):
+def process(capture_id, bands, bounds, force, follow_flag, output_json):
     """Process a single capture (alias to captures process)."""
     console = Console()
 
@@ -73,13 +74,13 @@ def process(capture_id, bands, bounds, follow_flag, output_json):
 
     # Start workflow
     try:
-        task_id = run_single_capture_workflow(capture_id, bands_list, bounds_tuple)
+        task_id = run_single_capture_workflow(capture_id, bands_list, bounds_tuple, force)
     except Exception as e:
         console.print(f"[red]Error starting workflow: {e}[/red]", stderr=True)
         raise click.Abort()
 
     if output_json:
-        result = {"task_id": task_id, "capture_id": capture_id, "workflow": "process"}
+        result = {"task_id": task_id, "capture_id": capture_id, "workflow": "process", "force": force}
         click.echo(format_json(result))
     else:
         console.print(f"[green]Processing workflow started for capture {capture_id}[/green]")
@@ -87,6 +88,8 @@ def process(capture_id, bands, bounds, follow_flag, output_json):
         console.print(f"Bands: {bands_list}")
         if bounds_tuple:
             console.print(f"Bounds: {bounds_tuple}")
+        if force:
+            console.print("[yellow]Force reprocessing: Enabled[/yellow]")
 
     if follow_flag and not output_json:
         follow_task(task_id, console=console)
@@ -130,9 +133,10 @@ def pipeline(follow_flag, output_json):
 @click.option('--bands', default='B02,B03,B04,B08', help='Comma-separated band list')
 @click.option('--bounds', help='Bounds: min_lon,min_lat,max_lon,max_lat')
 @click.option('--temporal-analysis/--no-temporal-analysis', default=True, help='Run temporal analysis after processing')
+@click.option('--force', is_flag=True, help='Force reprocessing even if outputs exist')
 @click.option('--follow', 'follow_flag', is_flag=True, help='Follow task execution')
 @click.option('--json', 'output_json', is_flag=True, help='Output as JSON')
-def process_multiple(capture_ids, bands, bounds, temporal_analysis, follow_flag, output_json):
+def process_multiple(capture_ids, bands, bounds, temporal_analysis, force, follow_flag, output_json):
     """Process multiple captures in parallel."""
     console = Console()
 
@@ -161,7 +165,8 @@ def process_multiple(capture_ids, bands, bounds, temporal_analysis, follow_flag,
             capture_id_list,
             bands_list,
             bounds_tuple,
-            temporal_analysis
+            temporal_analysis,
+            force
         )
     except Exception as e:
         console.print(f"[red]Error starting workflow: {e}[/red]", stderr=True)
@@ -171,7 +176,8 @@ def process_multiple(capture_ids, bands, bounds, temporal_analysis, follow_flag,
         result = {
             "task_id": task_id,
             "capture_ids": capture_id_list,
-            "workflow": "process_multiple"
+            "workflow": "process_multiple",
+            "force": force
         }
         click.echo(format_json(result))
     else:
@@ -182,6 +188,8 @@ def process_multiple(capture_ids, bands, bounds, temporal_analysis, follow_flag,
             console.print(f"Bounds: {bounds_tuple}")
         if temporal_analysis:
             console.print("Temporal analysis: [green]Enabled[/green]")
+        if force:
+            console.print("[yellow]Force reprocessing: Enabled[/yellow]")
 
     if follow_flag and not output_json:
         follow_task(task_id, console=console)
@@ -192,9 +200,10 @@ def process_multiple(capture_ids, bands, bounds, temporal_analysis, follow_flag,
 @click.option('--bands', default='B02,B03,B04,B08', help='Comma-separated band list')
 @click.option('--bounds', help='Bounds: min_lon,min_lat,max_lon,max_lat')
 @click.option('--mission', help='Filter by mission (e.g., SENTINEL-2A)')
+@click.option('--force', is_flag=True, help='Force reprocessing even if outputs exist')
 @click.option('--follow', 'follow_flag', is_flag=True, help='Follow task execution')
 @click.option('--json', 'output_json', is_flag=True, help='Output as JSON')
-def full_pipeline(location_ids, bands, bounds, mission, follow_flag, output_json):
+def full_pipeline(location_ids, bands, bounds, mission, force, follow_flag, output_json):
     """Complete end-to-end workflow: discovery → backup → processing → analysis."""
     console = Console()
 
@@ -230,7 +239,8 @@ def full_pipeline(location_ids, bands, bounds, mission, follow_flag, output_json
             location_id_list,
             bands_list,
             bounds_tuple,
-            mission
+            mission,
+            force
         )
     except Exception as e:
         console.print(f"[red]Error starting workflow: {e}[/red]", stderr=True)
@@ -241,7 +251,7 @@ def full_pipeline(location_ids, bands, bounds, mission, follow_flag, output_json
         return
 
     if output_json:
-        result = {"task_id": task_id, "workflow": "full_pipeline"}
+        result = {"task_id": task_id, "workflow": "full_pipeline", "force": force}
         click.echo(format_json(result))
     else:
         console.print(f"[green]Full pipeline workflow started[/green]")
@@ -251,6 +261,8 @@ def full_pipeline(location_ids, bands, bounds, mission, follow_flag, output_json
         console.print("  2. Back up discovered captures to GCS")
         console.print("  3. Process all backed-up captures in parallel")
         console.print("  4. Run temporal analysis on processed data")
+        if force:
+            console.print("\n[yellow]Force reprocessing: Enabled[/yellow]")
 
     if follow_flag and not output_json:
         follow_task(task_id, console=console)
@@ -261,9 +273,10 @@ def full_pipeline(location_ids, bands, bounds, mission, follow_flag, output_json
 @click.option('--bands', default='B02,B03,B04,B08', help='Comma-separated band list')
 @click.option('--bounds', help='Bounds: min_lon,min_lat,max_lon,max_lat')
 @click.option('--limit', type=int, help='Maximum number of captures to process')
+@click.option('--force', is_flag=True, help='Force reprocessing even if outputs exist')
 @click.option('--follow', 'follow_flag', is_flag=True, help='Follow task execution')
 @click.option('--json', 'output_json', is_flag=True, help='Output as JSON')
-def reprocess(mission, bands, bounds, limit, follow_flag, output_json):
+def reprocess(mission, bands, bounds, limit, force, follow_flag, output_json):
     """Reprocess existing backed-up captures with new parameters."""
     console = Console()
 
@@ -285,7 +298,8 @@ def reprocess(mission, bands, bounds, limit, follow_flag, output_json):
             mission,
             bands_list,
             bounds_tuple,
-            limit
+            limit,
+            force
         )
     except Exception as e:
         console.print(f"[red]Error starting workflow: {e}[/red]", stderr=True)
@@ -296,7 +310,7 @@ def reprocess(mission, bands, bounds, limit, follow_flag, output_json):
         return
 
     if output_json:
-        result = {"task_id": task_id, "workflow": "reprocess"}
+        result = {"task_id": task_id, "workflow": "reprocess", "force": force}
         click.echo(format_json(result))
     else:
         console.print(f"[green]Reprocessing workflow started[/green]")
@@ -308,6 +322,8 @@ def reprocess(mission, bands, bounds, limit, follow_flag, output_json):
             console.print(f"Bounds: {bounds_tuple}")
         if limit:
             console.print(f"Limit: {limit} captures")
+        if force:
+            console.print("[yellow]Force reprocessing: Enabled[/yellow]")
 
     if follow_flag and not output_json:
         follow_task(task_id, console=console)
@@ -319,9 +335,10 @@ def reprocess(mission, bands, bounds, limit, follow_flag, output_json):
 @click.option('--mission', help='Filter by mission (e.g., SENTINEL-2A)')
 @click.option('--limit', type=int, help='Maximum number of captures to process')
 @click.option('--temporal-analysis/--no-temporal-analysis', default=True, help='Run temporal analysis after processing')
+@click.option('--force', is_flag=True, help='Force reprocessing even if outputs exist')
 @click.option('--follow', 'follow_flag', is_flag=True, help='Follow task execution')
 @click.option('--json', 'output_json', is_flag=True, help='Output as JSON')
-def process_location(location_id, bands, mission, limit, temporal_analysis, follow_flag, output_json):
+def process_location(location_id, bands, mission, limit, temporal_analysis, force, follow_flag, output_json):
     """Process all backed-up captures for a specific location."""
     console = Console()
 
@@ -335,7 +352,8 @@ def process_location(location_id, bands, mission, limit, temporal_analysis, foll
             bands_list,
             mission,
             limit,
-            temporal_analysis
+            temporal_analysis,
+            force
         )
     except Exception as e:
         console.print(f"[red]Error starting workflow: {e}[/red]", stderr=True)
@@ -349,7 +367,8 @@ def process_location(location_id, bands, mission, limit, temporal_analysis, foll
         result = {
             "task_id": task_id,
             "location_id": location_id,
-            "workflow": "process_location"
+            "workflow": "process_location",
+            "force": force
         }
         click.echo(format_json(result))
     else:
@@ -362,6 +381,8 @@ def process_location(location_id, bands, mission, limit, temporal_analysis, foll
             console.print(f"Limit: {limit} captures")
         if temporal_analysis:
             console.print("Temporal analysis: [green]Enabled[/green]")
+        if force:
+            console.print("[yellow]Force reprocessing: Enabled[/yellow]")
 
     if follow_flag and not output_json:
         follow_task(task_id, console=console)

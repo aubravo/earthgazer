@@ -389,7 +389,8 @@ def run_backup_workflow(capture_ids: Optional[List[int]] = None) -> str:
 def run_single_capture_workflow(
     capture_id: int,
     bands: List[str] = None,
-    bounds: tuple = None
+    bounds: tuple = None,
+    force: bool = False
 ) -> str:
     """Start single capture processing workflow and return task ID."""
     from earthgazer.workflows import process_single_capture_workflow
@@ -397,7 +398,8 @@ def run_single_capture_workflow(
     result = process_single_capture_workflow(
         capture_id=capture_id,
         bands=bands,
-        bounds=bounds
+        bounds=bounds,
+        force=force
     )
     return result.id
 
@@ -416,7 +418,8 @@ def run_multiple_captures_workflow(
     capture_ids: List[int],
     bands: List[str] = None,
     bounds: tuple = None,
-    run_temporal_analysis: bool = True
+    run_temporal_analysis: bool = True,
+    force: bool = False
 ) -> str:
     """Process multiple captures in parallel and return task ID."""
     from earthgazer.workflows import process_multiple_captures_workflow
@@ -425,7 +428,8 @@ def run_multiple_captures_workflow(
         capture_ids=capture_ids,
         bands=bands,
         bounds=bounds,
-        run_temporal_analysis=run_temporal_analysis
+        run_temporal_analysis=run_temporal_analysis,
+        force=force
     )
     return result.id
 
@@ -434,7 +438,8 @@ def run_full_pipeline_workflow(
     location_ids: Optional[List[int]] = None,
     bands: List[str] = None,
     bounds: tuple = None,
-    mission_filter: Optional[str] = None
+    mission_filter: Optional[str] = None,
+    force: bool = False
 ) -> Optional[str]:
     """Run complete end-to-end workflow and return task ID."""
     from earthgazer.workflows import full_pipeline_workflow
@@ -443,7 +448,8 @@ def run_full_pipeline_workflow(
         location_ids=location_ids,
         bands=bands,
         bounds=bounds,
-        mission_filter=mission_filter
+        mission_filter=mission_filter,
+        force=force
     )
     return result.id if result else None
 
@@ -452,7 +458,8 @@ def run_reprocess_workflow(
     mission_filter: Optional[str] = None,
     bands: List[str] = None,
     bounds: tuple = None,
-    limit: Optional[int] = None
+    limit: Optional[int] = None,
+    force: bool = False
 ) -> Optional[str]:
     """Reprocess existing backed-up captures and return task ID."""
     from earthgazer.workflows import reprocess_existing_captures_workflow
@@ -461,7 +468,8 @@ def run_reprocess_workflow(
         mission_filter=mission_filter,
         bands=bands,
         bounds=bounds,
-        limit=limit
+        limit=limit,
+        force=force
     )
     return result.id if result else None
 
@@ -471,7 +479,8 @@ def run_location_workflow(
     bands: List[str] = None,
     mission_filter: Optional[str] = None,
     limit: Optional[int] = None,
-    run_temporal_analysis: bool = True
+    run_temporal_analysis: bool = True,
+    force: bool = False
 ) -> Optional[str]:
     """Process all captures for a specific location and return task ID."""
     from earthgazer.workflows import process_location_captures_workflow
@@ -481,7 +490,8 @@ def run_location_workflow(
         bands=bands,
         mission_filter=mission_filter,
         limit=limit,
-        run_temporal_analysis=run_temporal_analysis
+        run_temporal_analysis=run_temporal_analysis,
+        force=force
     )
     return result.id if result else None
 

@@ -7,6 +7,7 @@ Main entry point for the CLI application.
 import logging
 import click
 
+from earthgazer import __version__, __build__
 from earthgazer.cli.commands.status import status, watch
 from earthgazer.cli.commands.monitoring import monitoring
 from earthgazer.cli.commands.captures import captures
@@ -16,7 +17,7 @@ from earthgazer.cli.commands.locations import locations
 
 @click.group()
 @click.option('--verbose', '-v', is_flag=True, help='Enable verbose output (DEBUG level)')
-@click.version_option(version="1.0.0", prog_name="earthgazer")
+@click.version_option(version=f"{__version__} (build: {__build__})", prog_name="earthgazer")
 def cli(verbose):
     """
     EarthGazer - Satellite Image Processing CLI.
@@ -39,7 +40,15 @@ def cli(verbose):
         logging.getLogger('flower').setLevel(logging.WARNING)
 
 
+@click.command()
+def version():
+    """Show version and build information."""
+    click.echo(f"EarthGazer v{__version__}")
+    click.echo(f"Build: {__build__}")
+
+
 # Register top-level commands
+cli.add_command(version)
 cli.add_command(status)
 cli.add_command(watch)
 
