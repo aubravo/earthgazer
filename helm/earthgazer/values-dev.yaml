@@ -11,10 +11,7 @@ image:
 ## Data persistence - smaller for development
 persistence:
   enabled: true
-  storageClass: "standard"  # Use default storage class
-  accessMode: ReadWriteMany
-  size: 10Gi  # Smaller size for dev
-  annotations: {}
+  hostPath: /media/main_storage/earthgazer-data
 
 ## Google Cloud configuration
 gcloud:
@@ -101,11 +98,11 @@ workers:
     concurrency: 2
     resources:
       requests:
-        cpu: 1000m
-        memory: 2Gi
-      limits:
         cpu: 2000m
         memory: 4Gi
+      limits:
+        cpu: 4000m
+        memory: 8Gi
     autoscaling:
       enabled: false
 

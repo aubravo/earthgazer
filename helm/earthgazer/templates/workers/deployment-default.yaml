@@ -89,7 +89,11 @@ spec:
           {{- toYaml .Values.workers.default.resources | nindent 10 }}
       volumes:
         - name: data
-          {{- if .Values.persistence.enabled }}
+          {{- if .Values.persistence.hostPath }}
+          hostPath:
+            path: {{ .Values.persistence.hostPath }}
+            type: DirectoryOrCreate
+          {{- else if .Values.persistence.enabled }}
           persistentVolumeClaim:
             claimName: {{ include "earthgazer.dataVolumeName" . }}
           {{- else }}

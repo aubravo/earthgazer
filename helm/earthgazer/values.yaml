@@ -46,7 +46,15 @@ persistence:
   ## Enable persistence using PVC
   enabled: true
 
-  ## Storage class for PVC
+  ## Direct hostPath mounting (single-node clusters only)
+  ## When set, mounts a host directory directly instead of using PVC
+  ## This is useful for development or single-node setups where you want
+  ## to persist data to a specific local path (e.g., mounted SSD)
+  ## Example: /media/main_storage/earthgazer-data
+  ## IMPORTANT: Only use this for single-node clusters
+  hostPath: ""
+
+  ## Storage class for PVC (ignored if hostPath is set)
   ## If undefined or set to null, uses the default StorageClass
   ## For multi-worker access, use a StorageClass with ReadWriteMany support
   ## Examples: nfs, cephfs, aws-efs, azure-file, glusterfs
@@ -57,7 +65,7 @@ persistence:
   ## ReadWriteOnce - Only if using node affinity to keep all workers on same node
   accessMode: ReadWriteMany
 
-  ## Volume size for satellite imagery data
+  ## Volume size for satellite imagery data (ignored if hostPath is set)
   size: 500Gi
 
   ## Use existing PersistentVolumeClaim
