@@ -81,8 +81,9 @@ persistence:
 
 ## Google Cloud configuration
 gcloud:
-  ## Base64-encoded service account JSON
-  ## To encode: base64 -w0 service-account.json
+  ## Raw JSON content of your Google Cloud service account key file.
+  ## Paste the contents of service-account.json here, or use an override YAML.
+  ## See values-secrets.example.yaml for the recommended approach.
   serviceAccount: ""
 
   ## GCS bucket name for storing backups

@@ -27,53 +27,54 @@ This Helm chart deploys a complete EarthGazer stack including:
 
 ## Installing the Chart
 
-### 1. Create Secrets
+### 1. Create a secrets override file
 
-Create a Kubernetes secret with your Google Cloud service account credentials:
-
-```bash
-# Base64-encode your service account JSON
-export GCLOUD_SA=$(cat /path/to/service-account.json | base64 -w 0)
-
-# Create the secret
-kubectl create secret generic gcloud-credentials \
-  --from-literal=service-account.json="${GCLOUD_SA}"
-```
-
-Create secrets for database and Redis passwords (for production):
+All sensitive values (credentials, passwords) are supplied via a local override YAML that is never committed to version control.
 
 ```bash
-kubectl create secret generic postgresql-credentials \
-  --from-literal=postgres-password=YOUR_POSTGRES_PASSWORD
-
-kubectl create secret generic redis-credentials \
-  --from-literal=redis-password=YOUR_REDIS_PASSWORD
-
-kubectl create secret generic flower-credentials \
-  --from-literal=password=YOUR_FLOWER_PASSWORD
+cp values-secrets.example.yaml values-secrets.yaml
 ```
+
+Edit `values-secrets.yaml` and fill in your values:
+
+```yaml
+gcloud:
+  serviceAccount: |
+    {
+      "type": "service_account",
+      "project_id": "your-project-id",
+      ...
+    }
+  bucketName: "your-earthgazer-bucket"
+
+postgresql:
+  auth:
+    password: "strong-password"
+
+redis:
+  auth:
+    password: "strong-password"
+
+flower:
+  auth:
+    password: "strong-password"
+```
+
+`values-secrets.yaml` is listed in both `.gitignore` and `.helmignore` — it will never be committed or bundled into a chart package.
 
 ### 2. Install the Chart
 
 #### Development Installation
 
 ```bash
-helm install earthgazer . -f values-dev.yaml \
-  --set gcloud.serviceAccount="$(cat /path/to/service-account.json | base64 -w 0)" \
-  --set gcloud.bucketName="your-dev-bucket"
+helm install earthgazer . -f values-dev.yaml -f values-secrets.yaml
 ```
 
 #### Production Installation
 
 ```bash
-helm install earthgazer . -f values-prod.yaml \
-  --set image.registry=your-registry.io \
-  --set image.tag=1.0.0 \
-  --set gcloud.existingSecret=gcloud-credentials \
-  --set gcloud.bucketName=your-prod-bucket \
-  --set postgresql.auth.existingSecret=postgresql-credentials \
-  --set redis.auth.existingSecret=redis-credentials \
-  --set flower.auth.existingSecret=flower-credentials
+helm install earthgazer . -f values-prod.yaml -f values-secrets.yaml \
+  --set image.tag=1.0.0
 ```
 
 ### 3. Verify Installation
@@ -123,9 +124,9 @@ Common RWX storage solutions:
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `gcloud.serviceAccount` | Base64-encoded service account JSON | `""` |
+| `gcloud.serviceAccount` | Raw JSON content of the service account key file | `""` |
 | `gcloud.bucketName` | GCS bucket name | `""` |
-| `gcloud.existingSecret` | Existing secret with service account | `""` |
+| `gcloud.existingSecret` | Name of an existing secret containing the key (overrides `serviceAccount`) | `""` |
 
 ### PostgreSQL Configuration
 

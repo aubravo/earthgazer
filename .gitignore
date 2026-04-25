@@ -8,4 +8,7 @@ build/
 # Helm generated files
 helm/*/charts/
 helm/*/Chart.lock
+
+# Helm secrets override (contains credentials — never commit)
+helm/*/values-secrets.yaml
 data/
