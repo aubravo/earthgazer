@@ -1,0 +1,43 @@
+{
+  "timeseries": {
+    "mann_kendall": {
+      "S": -7643,
+      "tau": -0.2105,
+      "z": -5.1533,
+      "p_value": 0.0,
+      "trend": "decreasing"
+    },
+    "sens_slope_per_year": -0.015573,
+    "rolling_mean": {
+      "window": 6,
+      "mae": 0.072887,
+      "residual_std": 0.092954
+    }
+  },
+  "seasonal": {
+    "sinusoidal_fit": {
+      "A": 0.0541,
+      "phi": 1.9948,
+      "C": 0.2245,
+      "r2": 0.7669,
+      "rmse": 0.021101,
+      "peak_month": 11.2
+    }
+  },
+  "anomaly": {
+    "anomaly": {
+      "explained_variance_ratio": 0.1414,
+      "seasonal_rmse": 0.043535,
+      "anomaly_rmse": 0.107248
+    }
+  },
+  "spatial": {
+    "pixel_regression": {
+      "mean_r2": 0.0469,
+      "median_r2": 0.0409,
+      "pct_significant_pixels_alpha05": 86.2,
+      "mean_slope_per_year": -0.014484,
+      "median_slope_per_year": -0.014458
+    }
+  }
+}
