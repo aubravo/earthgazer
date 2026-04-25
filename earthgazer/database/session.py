@@ -6,10 +6,11 @@ with proper connection pooling to avoid exhausting PostgreSQL connections.
 """
 
 import logging
-from typing import Generator
+from collections.abc import Generator
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import Session
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import QueuePool
 
 from earthgazer.settings import EarthGazerSettings

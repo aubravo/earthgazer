@@ -3,16 +3,14 @@ Utility functions for CLI commands.
 """
 
 import time
-from typing import Any, Callable, Dict, Optional, Tuple
+from collections.abc import Callable
+from typing import Any
+
 from rich.console import Console
 from rich.live import Live
 
 
-def watch_loop(
-    render_func: Callable[[], Any],
-    interval: int = 5,
-    console: Console = None
-) -> None:
+def watch_loop(render_func: Callable[[], Any], interval: int = 5, console: Console = None) -> None:
     """
     Run a watch loop that refreshes display at regular intervals.
 
@@ -34,7 +32,7 @@ def watch_loop(
         console.print("\n[yellow]Watch mode stopped.[/yellow]")
 
 
-def follow_task(task_id: str, console: Console = None, poll_interval: int = 2) -> Dict[str, Any]:
+def follow_task(task_id: str, console: Console = None, poll_interval: int = 2) -> dict[str, Any]:
     """
     Follow a Celery task execution and display status updates.
 
@@ -57,22 +55,22 @@ def follow_task(task_id: str, console: Console = None, poll_interval: int = 2) -
 
     while True:
         result = get_task_result(task_id)
-        status = result.get('status', 'UNKNOWN')
+        status = result.get("status", "UNKNOWN")
 
         # Only print if status changed
         if status != last_status:
-            if status == 'PENDING':
+            if status == "PENDING":
                 console.print(f"Status: [yellow]{status}[/yellow]")
-            elif status == 'STARTED':
+            elif status == "STARTED":
                 console.print(f"Status: [blue]{status}[/blue]")
-            elif status == 'SUCCESS':
-                console.print(f"[green]Status: SUCCESS[/green]")
-                if result.get('result'):
+            elif status == "SUCCESS":
+                console.print("[green]Status: SUCCESS[/green]")
+                if result.get("result"):
                     console.print(f"Result: {result['result']}")
                 return result
-            elif status == 'FAILURE':
-                console.print(f"[red]Status: FAILURE[/red]")
-                if result.get('result'):
+            elif status == "FAILURE":
+                console.print("[red]Status: FAILURE[/red]")
+                if result.get("result"):
                     console.print(f"Error: {result['result']}")
                 return result
             else:
@@ -81,13 +79,13 @@ def follow_task(task_id: str, console: Console = None, poll_interval: int = 2) -
             last_status = status
 
         # Check if task is done
-        if result.get('ready'):
+        if result.get("ready"):
             return result
 
         time.sleep(poll_interval)
 
 
-def parse_bounds(bounds_str: str) -> Tuple[float, float, float, float]:
+def parse_bounds(bounds_str: str) -> tuple[float, float, float, float]:
     """
     Parse bounds string into tuple of floats.
 
@@ -101,15 +99,15 @@ def parse_bounds(bounds_str: str) -> Tuple[float, float, float, float]:
         ValueError: If bounds string is invalid
     """
     try:
-        parts = [float(x.strip()) for x in bounds_str.split(',')]
+        parts = [float(x.strip()) for x in bounds_str.split(",")]
         if len(parts) != 4:
             raise ValueError("Bounds must have 4 values: min_lon,min_lat,max_lon,max_lat")
         return tuple(parts)
     except (ValueError, AttributeError) as e:
-        raise ValueError(f"Invalid bounds format: {e}")
+        raise ValueError(f"Invalid bounds format: {e}") from e
 
 
-def format_duration(seconds: Optional[float]) -> str:
+def format_duration(seconds: float | None) -> str:
     """
     Format duration in seconds to human-readable string.
 
@@ -154,18 +152,14 @@ def validate_capture_id(capture_id: int, console: Console = None) -> bool:
     captures = get_captures(backed_up_only=False, limit=1000)
 
     # Find the capture
-    capture = next((c for c in captures if c['id'] == capture_id), None)
+    capture = next((c for c in captures if c["id"] == capture_id), None)
 
     if not capture:
         console.print(f"[red]Error: Capture {capture_id} not found[/red]", stderr=True)
         return False
 
-    if not capture.get('backed_up'):
-        console.print(
-            f"[red]Error: Capture {capture_id} is not backed up. "
-            f"Please back it up first.[/red]",
-            stderr=True
-        )
+    if not capture.get("backed_up"):
+        console.print(f"[red]Error: Capture {capture_id} is not backed up. Please back it up first.[/red]", stderr=True)
         return False
 
     return True

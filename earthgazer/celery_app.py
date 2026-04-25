@@ -7,8 +7,11 @@ CPU-bound tasks into different queues.
 """
 
 import logging
+
 from celery import Celery
-from earthgazer import __version__, __build__
+
+from earthgazer import __build__
+from earthgazer import __version__
 from earthgazer.settings import EarthGazerSettings
 
 logger = logging.getLogger(__name__)
@@ -20,7 +23,7 @@ import earthgazer.monitoring  # noqa: F401
 settings = EarthGazerSettings()
 
 # Create Celery app
-app = Celery('earthgazer')
+app = Celery("earthgazer")
 
 # Configure Celery from settings
 app.conf.update(
@@ -36,38 +39,34 @@ app.conf.update(
     task_acks_late=settings.celery.task_acks_late,
     task_reject_on_worker_lost=settings.celery.task_reject_on_worker_lost,
     result_expires=settings.celery.result_expires,
-
     # Task routing - separate queues for different workload types
     task_routes={
-        'earthgazer.tasks.discover_images_task': {'queue': 'io_queue'},
-        'earthgazer.tasks.backup_image_task': {'queue': 'io_queue'},
-        'earthgazer.tasks.download_bands_task': {'queue': 'io_queue'},
-        'earthgazer.tasks.stack_and_crop_task': {'queue': 'cpu_queue'},
-        'earthgazer.tasks.compute_ndvi_task': {'queue': 'cpu_queue'},
-        'earthgazer.tasks.generate_rgb_task': {'queue': 'cpu_queue'},
-        'earthgazer.tasks.save_outputs_task': {'queue': 'io_queue'},
-        'earthgazer.tasks.temporal_analysis_task': {'queue': 'cpu_queue'},
+        "earthgazer.tasks.discover_images_task": {"queue": "io_queue"},
+        "earthgazer.tasks.backup_image_task": {"queue": "io_queue"},
+        "earthgazer.tasks.download_bands_task": {"queue": "io_queue"},
+        "earthgazer.tasks.stack_and_crop_task": {"queue": "cpu_queue"},
+        "earthgazer.tasks.compute_ndvi_task": {"queue": "cpu_queue"},
+        "earthgazer.tasks.generate_rgb_task": {"queue": "cpu_queue"},
+        "earthgazer.tasks.save_outputs_task": {"queue": "io_queue"},
+        "earthgazer.tasks.temporal_analysis_task": {"queue": "cpu_queue"},
     },
-
     # Default queue for tasks not explicitly routed
-    task_default_queue='default',
-
+    task_default_queue="default",
     # Task result extended details
     result_extended=True,
-
     # Enable task events for monitoring
     worker_send_task_events=True,
     task_send_sent_event=True,
 )
 
-logger.info(f"=" * 60)
+logger.info("=" * 60)
 logger.info(f"EarthGazer v{__version__} (build: {__build__})")
-logger.info(f"=" * 60)
+logger.info("=" * 60)
 logger.info(f"Celery app initialized with broker: {settings.celery.broker_url}")
-logger.info(f"Task queues configured: io_queue, cpu_queue, default")
+logger.info("Task queues configured: io_queue, cpu_queue, default")
 
 # Auto-discover tasks from tasks.py module
-app.autodiscover_tasks(['earthgazer'])
+app.autodiscover_tasks(["earthgazer"])
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.start()

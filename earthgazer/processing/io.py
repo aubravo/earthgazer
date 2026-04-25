@@ -4,7 +4,6 @@ Raster I/O module for reading and writing GeoTIFF files.
 
 import logging
 from pathlib import Path
-from typing import Dict
 
 import numpy as np
 import rasterio
@@ -12,11 +11,7 @@ import rasterio
 logger = logging.getLogger(__name__)
 
 
-def save_raster(
-    output_path: str,
-    array: np.ndarray,
-    meta: Dict
-) -> None:
+def save_raster(output_path: str, array: np.ndarray, meta: dict) -> None:
     """
     Save a single-band raster array as a GeoTIFF file.
 
@@ -31,11 +26,7 @@ def save_raster(
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
     meta_out = meta.copy()
-    meta_out.update({
-        "count": 1,
-        "dtype": "float32",
-        "driver": "GTiff"
-    })
+    meta_out.update({"count": 1, "dtype": "float32", "driver": "GTiff"})
 
     with rasterio.open(output_path, "w", **meta_out) as dst:
         dst.write(array.astype(np.float32), 1)
@@ -43,11 +34,7 @@ def save_raster(
     logger.info(f"Raster saved successfully: {output_path}")
 
 
-def save_rgb(
-    output_path: str,
-    rgb_array: np.ndarray,
-    meta: Dict
-) -> None:
+def save_rgb(output_path: str, rgb_array: np.ndarray, meta: dict) -> None:
     """
     Save an RGB composite as a 3-band GeoTIFF file.
 
@@ -62,11 +49,7 @@ def save_rgb(
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
     meta_out = meta.copy()
-    meta_out.update({
-        "count": 3,
-        "dtype": "float32",
-        "driver": "GTiff"
-    })
+    meta_out.update({"count": 3, "dtype": "float32", "driver": "GTiff"})
 
     with rasterio.open(output_path, "w", **meta_out) as dst:
         for i in range(3):
@@ -75,7 +58,7 @@ def save_rgb(
     logger.info(f"RGB composite saved successfully: {output_path}")
 
 
-def load_raster(file_path: str) -> tuple[np.ndarray, Dict]:
+def load_raster(file_path: str) -> tuple[np.ndarray, dict]:
     """
     Load a raster file and return the array and metadata.
 

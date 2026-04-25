@@ -1,0 +1,28 @@
+#!/bin/bash
+set -e
+
+INIT_FILE="earthgazer/__init__.py"
+HASH=$(git rev-parse --short HEAD)
+DATE=$(date +%Y%m%d)
+BUILD="${DATE}-${HASH}"
+
+python3 - <<EOF
+import re
+
+with open("${INIT_FILE}") as f:
+    content = f.read()
+
+updated = re.sub(r'__build__ = "[^"]*"', '__build__ = "${BUILD}"', content)
+
+if updated == content:
+    exit(0)
+
+with open("${INIT_FILE}", "w") as f:
+    f.write(updated)
+EOF
+
+if ! git diff --quiet "${INIT_FILE}"; then
+    git add "${INIT_FILE}"
+    git commit -m "chore: update build to ${BUILD}"
+    echo "earthgazer: build updated to ${BUILD}"
+fi

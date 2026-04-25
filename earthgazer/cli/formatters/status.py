@@ -2,14 +2,14 @@
 Status display formatter for CLI.
 """
 
-from typing import Any, Dict, List
+from typing import Any
+
+from rich.console import Group
 from rich.panel import Panel
 from rich.text import Text
-from rich.console import Group
-from rich.table import Table
 
 
-def render_status_display(status_data: Dict[str, Any], active_tasks: List[Dict[str, Any]] = None) -> Group:
+def render_status_display(status_data: dict[str, Any], active_tasks: list[dict[str, Any]] = None) -> Group:
     """
     Render system status as a Rich renderable group.
 
@@ -23,14 +23,14 @@ def render_status_display(status_data: Dict[str, Any], active_tasks: List[Dict[s
     # System Status Section
     status_text = Text()
 
-    if status_data.get('redis'):
+    if status_data.get("redis"):
         status_text.append("✓ ", style="green")
         status_text.append("Redis: Connected\n")
     else:
         status_text.append("✗ ", style="red")
         status_text.append("Redis: Disconnected\n")
 
-    workers = status_data.get('celery_workers', 0)
+    workers = status_data.get("celery_workers", 0)
     if workers > 0:
         status_text.append("✓ ", style="green")
         status_text.append(f"Celery: {workers} worker(s)\n")
@@ -38,7 +38,7 @@ def render_status_display(status_data: Dict[str, Any], active_tasks: List[Dict[s
         status_text.append("✗ ", style="red")
         status_text.append("Celery: No workers\n")
 
-    if status_data.get('database'):
+    if status_data.get("database"):
         status_text.append("✓ ", style="green")
         status_text.append("Database: Connected")
     else:
@@ -61,11 +61,11 @@ def render_status_display(status_data: Dict[str, Any], active_tasks: List[Dict[s
         if active_tasks:
             task_text = Text()
             for task in active_tasks[:5]:  # Limit to 5 tasks
-                name = task.get('name', 'Unknown').split('.')[-1]
+                name = task.get("name", "Unknown").split(".")[-1]
                 task_text.append("→ ", style="yellow")
                 task_text.append(f"{name}\n")
             # Remove trailing newline
-            task_str = str(task_text).rstrip('\n')
+            task_str = str(task_text).rstrip("\n")
             task_text = Text(task_str)
         else:
             task_text = Text("No active tasks", style="dim")
@@ -77,7 +77,7 @@ def render_status_display(status_data: Dict[str, Any], active_tasks: List[Dict[s
         return Group(system_panel, stats_panel)
 
 
-def render_simple_status(status_data: Dict[str, Any]) -> Text:
+def render_simple_status(status_data: dict[str, Any]) -> Text:
     """
     Render a simplified one-line status summary.
 
@@ -90,7 +90,7 @@ def render_simple_status(status_data: Dict[str, Any]) -> Text:
     text = Text()
 
     # Redis status
-    if status_data.get('redis'):
+    if status_data.get("redis"):
         text.append("Redis: ", style="bold")
         text.append("✓ ", style="green")
     else:
@@ -98,7 +98,7 @@ def render_simple_status(status_data: Dict[str, Any]) -> Text:
         text.append("✗ ", style="red")
 
     # Celery status
-    workers = status_data.get('celery_workers', 0)
+    workers = status_data.get("celery_workers", 0)
     text.append("| Celery: ", style="bold")
     if workers > 0:
         text.append(f"✓ ({workers} workers) ", style="green")
@@ -107,7 +107,7 @@ def render_simple_status(status_data: Dict[str, Any]) -> Text:
 
     # Database status
     text.append("| Database: ", style="bold")
-    if status_data.get('database'):
+    if status_data.get("database"):
         text.append("✓", style="green")
     else:
         text.append("✗", style="red")

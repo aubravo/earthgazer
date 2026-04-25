@@ -10,12 +10,9 @@ This module implements intelligent retrieval logic that:
 
 import logging
 from pathlib import Path
-from typing import Optional
 
-from earthgazer.processing.tracking import (
-    get_processed_image,
-    verify_local_file_exists
-)
+from earthgazer.processing.tracking import get_processed_image
+from earthgazer.processing.tracking import verify_local_file_exists
 from earthgazer.processing.upload import download_processed_image_from_bucket
 from earthgazer.settings import EarthGazerSettings
 
@@ -25,11 +22,11 @@ logger = logging.getLogger(__name__)
 def ensure_processed_image_available(
     capture_id: int,
     image_type: str,
-    bands: Optional[list] = None,
-    bounds: Optional[dict] = None,
+    bands: list | None = None,
+    bounds: dict | None = None,
     force: bool = False,
-    settings: Optional[EarthGazerSettings] = None
-) -> Optional[str]:
+    settings: EarthGazerSettings | None = None,
+) -> str | None:
     """
     Ensure processed image is available locally.
 
@@ -58,12 +55,7 @@ def ensure_processed_image_available(
 
     # Check database for matching processed image
     logger.debug(f"Checking database for processed image: capture={capture_id}, type={image_type}")
-    processed_image = get_processed_image(
-        capture_id=capture_id,
-        image_type=image_type,
-        bands=bands,
-        bounds=bounds
-    )
+    processed_image = get_processed_image(capture_id=capture_id, image_type=image_type, bands=bands, bounds=bounds)
 
     if not processed_image:
         logger.info(f"No matching processed image found for capture {capture_id}, type {image_type}")
@@ -88,10 +80,7 @@ def ensure_processed_image_available(
 
         # Attempt download
         success = download_processed_image_from_bucket(
-            capture_id=capture_id,
-            image_type=image_type,
-            local_path=str(local_path),
-            settings=settings
+            capture_id=capture_id, image_type=image_type, local_path=str(local_path), settings=settings
         )
 
         if success:
@@ -104,7 +93,7 @@ def ensure_processed_image_available(
                 logger.warning(f"Downloaded file verification failed: {processed_image.local_path}")
                 return None
         else:
-            logger.warning(f"Failed to download from GCloud, will trigger reprocessing")
+            logger.warning("Failed to download from GCloud, will trigger reprocessing")
             return None
 
     # No GCloud backup available
@@ -115,10 +104,10 @@ def ensure_processed_image_available(
 def check_if_processing_needed(
     capture_id: int,
     image_types: list[str],
-    bands: Optional[list] = None,
-    bounds: Optional[dict] = None,
+    bands: list | None = None,
+    bounds: dict | None = None,
     force: bool = False,
-    settings: Optional[EarthGazerSettings] = None
+    settings: EarthGazerSettings | None = None,
 ) -> dict[str, bool]:
     """
     Check which image types need processing for a capture.
@@ -138,24 +127,14 @@ def check_if_processing_needed(
 
     for image_type in image_types:
         path = ensure_processed_image_available(
-            capture_id=capture_id,
-            image_type=image_type,
-            bands=bands,
-            bounds=bounds,
-            force=force,
-            settings=settings
+            capture_id=capture_id, image_type=image_type, bands=bands, bounds=bounds, force=force, settings=settings
         )
-        result[image_type] = (path is None)
+        result[image_type] = path is None
 
     return result
 
 
-def get_cached_image_path(
-    capture_id: int,
-    image_type: str,
-    bands: Optional[list] = None,
-    bounds: Optional[dict] = None
-) -> Optional[str]:
+def get_cached_image_path(capture_id: int, image_type: str, bands: list | None = None, bounds: dict | None = None) -> str | None:
     """
     Get path to cached processed image if it exists locally.
 
@@ -170,12 +149,7 @@ def get_cached_image_path(
     Returns:
         Local path if available, None otherwise
     """
-    processed_image = get_processed_image(
-        capture_id=capture_id,
-        image_type=image_type,
-        bands=bands,
-        bounds=bounds
-    )
+    processed_image = get_processed_image(capture_id=capture_id, image_type=image_type, bands=bands, bounds=bounds)
 
     if not processed_image:
         return None

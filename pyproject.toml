@@ -19,6 +19,7 @@ include = ["earthgazer*"]
 
 [tool.ruff]
 extend-exclude = ["static", "ci/templates"]
+include = ["earthgazer/**/*.py"]
 line-length = 140
 src = ["earthgazer", "tests"]
 target-version = "py312"

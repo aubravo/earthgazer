@@ -1,33 +1,37 @@
+import glob
 import json
+import os
+import re
 from datetime import datetime
 from pathlib import Path
-import re
 
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import rasterio
 from google.cloud import bigquery
-from google.oauth2 import service_account
 from google.cloud import storage
-from sqlalchemy import create_engine, or_
+from google.oauth2 import service_account
+from rasterio.warp import Resampling
+from rasterio.warp import reproject
+from rasterio.warp import transform_bounds
+from rasterio.windows import from_bounds
+from sklearn.linear_model import LinearRegression
+from sqlalchemy import create_engine
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from .database.definitions import Location, CaptureData
+from .database.definitions import CaptureData
+from .database.definitions import Location
 from .settings import EarthGazerSettings
-
-import rasterio
-from rasterio.warp import reproject, Resampling, transform_bounds
-from rasterio.windows import from_bounds
-import numpy as np
-import os, glob
-
-import pandas as pd
-import matplotlib.pyplot as plt
-from sklearn.linear_model  import LinearRegression
 
 # Load settings
 SETTINGS = EarthGazerSettings()
 GCLOUD_BUCKET = SETTINGS.gcloud.bucket_name
 
 service_account_credentials = service_account.Credentials.from_service_account_info(
-    SETTINGS.gcloud.service_account, scopes=["https://www.googleapis.com/auth/cloud-platform"])
+    SETTINGS.gcloud.service_account, scopes=["https://www.googleapis.com/auth/cloud-platform"]
+)
 
 # Load definitions
 PLATFORMS = json.load(Path.open("earthgazer/definitions/platforms.json"))
@@ -52,31 +56,31 @@ def check_for_new_images():
         for platform in PLATFORMS:
             print(f"Loading platform: {platform}")
             query = f"""SELECT
-                    {PLATFORMS[platform]['main_id']} AS main_id,
-                    {PLATFORMS[platform]['secondary_id']} AS secondary_id,
-                    {PLATFORMS[platform]['mission_id']} AS mission_id,
-                    {PLATFORMS[platform]['sensing_time']} AS sensing_time,
-                    {PLATFORMS[platform]['cloud_cover']} AS cloud_cover,
-                    {PLATFORMS[platform]['north_lat']} AS north_lat,
-                    {PLATFORMS[platform]['south_lat']} AS south_lat,
-                    {PLATFORMS[platform]['west_lon']} AS west_lon,
-                    {PLATFORMS[platform]['east_lon']} AS east_lon,
-                    {PLATFORMS[platform]['base_url']} AS base_url,
-                    {PLATFORMS[platform]['mgrs_tile']} AS mgrs_tile,
-                    {PLATFORMS[platform]['radiometric_measure']} AS radiometric_measure,
-                    {PLATFORMS[platform]['athmospheric_reference_level']} AS athmospheric_reference_level,
-                    {PLATFORMS[platform]['wrs_path']} AS wrs_path,
-                    {PLATFORMS[platform]['wrs_row']} AS wrs_row,
-                    {PLATFORMS[platform]['data_type']} AS data_type
-                    FROM {PLATFORMS[platform]['bigquery_path']}
+                    {PLATFORMS[platform]["main_id"]} AS main_id,
+                    {PLATFORMS[platform]["secondary_id"]} AS secondary_id,
+                    {PLATFORMS[platform]["mission_id"]} AS mission_id,
+                    {PLATFORMS[platform]["sensing_time"]} AS sensing_time,
+                    {PLATFORMS[platform]["cloud_cover"]} AS cloud_cover,
+                    {PLATFORMS[platform]["north_lat"]} AS north_lat,
+                    {PLATFORMS[platform]["south_lat"]} AS south_lat,
+                    {PLATFORMS[platform]["west_lon"]} AS west_lon,
+                    {PLATFORMS[platform]["east_lon"]} AS east_lon,
+                    {PLATFORMS[platform]["base_url"]} AS base_url,
+                    {PLATFORMS[platform]["mgrs_tile"]} AS mgrs_tile,
+                    {PLATFORMS[platform]["radiometric_measure"]} AS radiometric_measure,
+                    {PLATFORMS[platform]["athmospheric_reference_level"]} AS athmospheric_reference_level,
+                    {PLATFORMS[platform]["wrs_path"]} AS wrs_path,
+                    {PLATFORMS[platform]["wrs_row"]} AS wrs_row,
+                    {PLATFORMS[platform]["data_type"]} AS data_type
+                    FROM {PLATFORMS[platform]["bigquery_path"]}
                     WHERE
-                    {PLATFORMS[platform]['sensing_time']} >= '{location.from_date}' AND
-                    {PLATFORMS[platform]['sensing_time']} <= '{location.to_date}' AND
-                    {PLATFORMS[platform]['north_lat']} >= {location.latitude} AND
-                    {PLATFORMS[platform]['south_lat']} <= {location.latitude} AND
-                    {PLATFORMS[platform]['west_lon']} <= {location.longitude} AND
-                    {PLATFORMS[platform]['east_lon']} >= {location.longitude} AND
-                    {PLATFORMS[platform]['base_url']} IS NOT NULL
+                    {PLATFORMS[platform]["sensing_time"]} >= '{location.from_date}' AND
+                    {PLATFORMS[platform]["sensing_time"]} <= '{location.to_date}' AND
+                    {PLATFORMS[platform]["north_lat"]} >= {location.latitude} AND
+                    {PLATFORMS[platform]["south_lat"]} <= {location.latitude} AND
+                    {PLATFORMS[platform]["west_lon"]} <= {location.longitude} AND
+                    {PLATFORMS[platform]["east_lon"]} >= {location.longitude} AND
+                    {PLATFORMS[platform]["base_url"]} IS NOT NULL
             """
             print(f"Generated query for {platform}: {query}")
             queries.append(query)
@@ -88,7 +92,11 @@ def check_for_new_images():
     with Session(engine) as session:
         for query in queries:
             for result in bigquery_client.query(query):
-                if session.query(CaptureData).where(CaptureData.main_id == result.main_id,CaptureData.mission_id == result.mission_id).scalar():
+                if (
+                    session.query(CaptureData)
+                    .where(CaptureData.main_id == result.main_id, CaptureData.mission_id == result.mission_id)
+                    .scalar()
+                ):
                     print(f"CaptureData with main_id {result.main_id} and mission_id {result.mission_id} already exists in the database.")
                     continue
                 CaptureData(
@@ -107,8 +115,9 @@ def check_for_new_images():
                     mgrs_tile=result.mgrs_tile,
                     wrs_path=result.wrs_path,
                     wrs_row=result.wrs_row,
-                    data_type=result.data_type
+                    data_type=result.data_type,
                 ).add(session)
+
 
 def get_capture_data():
     gcs_url_parser = re.compile(r"gs://(?P<bucket_name>.*?)/(?P<blobs_path_name>.*)")
@@ -118,10 +127,11 @@ def get_capture_data():
     destination_bucket = storage_client.bucket(GCLOUD_BUCKET)
 
     with Session(engine) as session:
-        for data in session.query(CaptureData).where(CaptureData.backed_up == False, or_(CaptureData.mission_id.like("%LANDSAT_8%"), CaptureData.mission_id.like("SENTINEL-2%") )):
+        for data in session.query(CaptureData).where(
+            ~CaptureData.backed_up, or_(CaptureData.mission_id.like("%LANDSAT_8%"), CaptureData.mission_id.like("SENTINEL-2%"))
+        ):
             parsed_base_url = gcs_url_parser.search(data.base_url).groupdict()
             source_bucket = storage_client.bucket(parsed_base_url["bucket_name"])
-
 
             for blob in storage_client.list_blobs(source_bucket, prefix=parsed_base_url["blobs_path_name"]):
                 if selected_blob := blob_finder.search(blob.name):
@@ -136,7 +146,8 @@ def get_capture_data():
                     data.backup_location = f"gs://{destination_bucket.name}/{blob_copy.name}"
                     session.commit()
 
-def get_capture_data_by_id_and_bands(id:int, bands:list[str]):
+
+def get_capture_data_by_id_and_bands(id: int, bands: list[str]):
     storage_client = storage.Client(credentials=service_account_credentials)
     bucket = storage_client.bucket(GCLOUD_BUCKET)
 
@@ -165,6 +176,7 @@ def get_capture_data_by_id_and_bands(id:int, bands:list[str]):
                 file_path.mkdir(parents=True, exist_ok=True)
                 blob.download_to_filename(file_path / f"{detected_band.group(1)}.{file_extension}")
 
+
 def load_and_stack_bands(scene_folder, bands=["B02", "B03", "B04", "B08"]):
     """
     Load and stack Sentinel-2 JP2 bands from a folder.
@@ -189,22 +201,23 @@ def load_and_stack_bands(scene_folder, bands=["B02", "B03", "B04", "B08"]):
                 band_ref = band
             else:
                 # Align band resolution if needed
-                if src.shape != (ref_meta['height'], ref_meta['width']):
-                    resampled = np.empty((ref_meta['height'], ref_meta['width']), dtype=np.float32)
+                if src.shape != (ref_meta["height"], ref_meta["width"]):
+                    resampled = np.empty((ref_meta["height"], ref_meta["width"]), dtype=np.float32)
                     reproject(
                         source=rasterio.band(src, 1),
                         destination=resampled,
                         src_transform=src.transform,
                         src_crs=src.crs,
-                        dst_transform=ref_meta['transform'],
-                        dst_crs=ref_meta['crs'],
-                        resampling=Resampling.bilinear
+                        dst_transform=ref_meta["transform"],
+                        dst_crs=ref_meta["crs"],
+                        resampling=Resampling.bilinear,
                     )
                     band = resampled
             band_data.append(band)
 
     stacked = np.stack(band_data, axis=0)
     return stacked, ref_meta
+
 
 def crop_and_normalize(image, meta, bounds):
     """
@@ -221,21 +234,19 @@ def crop_and_normalize(image, meta, bounds):
     window = from_bounds(*target_bounds, transform=meta["transform"])
     window = window.round_offsets().round_shape()
 
-    cropped = image[:, int(window.row_off):int(window.row_off + window.height),
-                       int(window.col_off):int(window.col_off + window.width)]
+    cropped = image[:, int(window.row_off) : int(window.row_off + window.height), int(window.col_off) : int(window.col_off + window.width)]
 
     meta_cropped = meta.copy()
-    meta_cropped.update({
-        "height": cropped.shape[1],
-        "width": cropped.shape[2],
-        "transform": rasterio.windows.transform(window, meta["transform"])
-    })
+    meta_cropped.update(
+        {"height": cropped.shape[1], "width": cropped.shape[2], "transform": rasterio.windows.transform(window, meta["transform"])}
+    )
 
     # Ensure north-up orientation
     if meta_cropped["transform"].a < 0 or meta_cropped["transform"].e > 0:
         cropped = np.flipud(cropped)
 
     return cropped, meta_cropped
+
 
 def compute_ndvi_from_stack(stacked, bands=["B02", "B03", "B04", "B08"]):
     red_idx = bands.index("B04")
@@ -252,6 +263,7 @@ def save_raster(output_path, array, meta):
     meta_out.update({"count": 1, "dtype": "float32", "driver": "GTiff"})
     with rasterio.open(output_path, "w", **meta_out) as dst:
         dst.write(array.astype(np.float32), 1)
+
 
 def create_rgb_from_stack(stacked, bands=["B02", "B03", "B04", "B08"]):
     """
@@ -270,30 +282,26 @@ def create_rgb_from_stack(stacked, bands=["B02", "B03", "B04", "B08"]):
     rgb = np.dstack([stretch(red), stretch(green), stretch(blue)])
     return rgb
 
+
 def save_rgb(output_path_tif, rgb_array, meta):
     meta_out = meta.copy()
-    meta_out.update({
-        "count": 3,
-        "dtype": "float32",
-        "driver": "GTiff"
-    })
+    meta_out.update({"count": 3, "dtype": "float32", "driver": "GTiff"})
     with rasterio.open(output_path_tif, "w", **meta_out) as dst:
         for i in range(3):
             dst.write(rgb_array[:, :, i].astype(np.float32), i + 1)
 
+
 def get_relevant_capture_data():
     with Session(engine) as session:
-        return session.query(CaptureData).where(
-            CaptureData.backed_up == True, 
-            CaptureData.mission_id == "SENTINEL-2A"
-            ).all()
+        return session.query(CaptureData).where(CaptureData.backed_up, CaptureData.mission_id == "SENTINEL-2A").all()
+
 
 if __name__ == "__main__":
     bounds = (-98.898926, 18.955649, -98.399734, 19.282628)
 
     check_for_new_images()
     get_capture_data()
-    
+
     for capture in get_relevant_capture_data():
         id = capture.id
 
@@ -309,7 +317,7 @@ if __name__ == "__main__":
 
         save_raster(f"data/features/ndvi_{id}.tif", ndvi, meta_crop)
         save_rgb(f"data/features/rgb_{id}.tif", rgb, meta_crop)
-    
+
     ndvi_files = sorted(glob.glob("data/features/ndvi_*.tif"))
 
     # ------- Plotting NDVI over time ------- #
@@ -317,7 +325,7 @@ if __name__ == "__main__":
     with Session(engine) as session:
         for file in ndvi_files:
             print(f"Processing file: {file}")
-            match = re.search(r'(\d+)\.tif', file)
+            match = re.search(r"(\d+)\.tif", file)
             id = match.group(1)
             capture = session.query(CaptureData).where(CaptureData.id == id).first()
             sensing_time = capture.sensing_time
@@ -329,9 +337,9 @@ if __name__ == "__main__":
                 ndvi = np.where((ndvi > -1) & (ndvi < 1), ndvi, np.nan)
                 mean_ndvi = np.nanmean(ndvi)
                 records.append({"sensing_date": sensing_date, "mean_ndvi": mean_ndvi})
-    
+
     df = pd.DataFrame(records).sort_values("sensing_date")
-    plt.figure(figsize=(8,5))
+    plt.figure(figsize=(8, 5))
     plt.plot(df["sensing_date"], df["mean_ndvi"], "o-", color="green", lw=2)
     plt.title("Mean NDVI Over Time")
     plt.xlabel("")
@@ -346,7 +354,7 @@ if __name__ == "__main__":
 
     with Session(engine) as session:
         for file in ndvi_files:
-            match = re.search(r'(\d+)\.tif', file)
+            match = re.search(r"(\d+)\.tif", file)
             id = match.group(1)
             capture = session.query(CaptureData).where(CaptureData.id == id).first()
             sensing_time = capture.sensing_time
@@ -359,7 +367,7 @@ if __name__ == "__main__":
                     if meta_ref is None:
                         meta_ref = src.meta
                     stack.append(src.read(1))
-                
+
     ndvi_stack = np.stack(stack, axis=0)  # shape: (years, height, width)
 
     # Fit a linear regression per pixel to get NDVI slope (trend)

@@ -7,14 +7,17 @@ independently executable and retryable.
 """
 
 import logging
-from typing import List, Optional, Tuple
 
 from celery import Task
-from celery.exceptions import Reject
 from google.oauth2 import service_account
 
 from earthgazer.celery_app import app
-from earthgazer.processing import discovery, download, preprocessing, features, io, analysis
+from earthgazer.processing import analysis
+from earthgazer.processing import discovery
+from earthgazer.processing import download
+from earthgazer.processing import features
+from earthgazer.processing import io
+from earthgazer.processing import preprocessing
 from earthgazer.settings import EarthGazerSettings
 
 logger = logging.getLogger(__name__)
@@ -23,22 +26,34 @@ logger = logging.getLogger(__name__)
 def get_service_account_credentials():
     """Get Google Cloud service account credentials from settings."""
     settings = EarthGazerSettings()
+
+    # Check if service_account is properly configured
+    if not settings.gcloud.service_account:
+        raise ValueError("GCloud service account is not configured")
+
+    if isinstance(settings.gcloud.service_account, str):
+        raise ValueError(
+            "GCloud service account is still a string. Check that EARTHGAZER__GCLOUD__SERVICE_ACCOUNT is properly base64-encoded JSON."
+        )
+
+    if not isinstance(settings.gcloud.service_account, dict):
+        raise ValueError(f"GCloud service account must be a dict, got {type(settings.gcloud.service_account)}")
+
     return service_account.Credentials.from_service_account_info(
-        settings.gcloud.service_account,
-        scopes=["https://www.googleapis.com/auth/cloud-platform"]
+        settings.gcloud.service_account, scopes=["https://www.googleapis.com/auth/cloud-platform"]
     )
 
 
 @app.task(
     bind=True,
-    name='earthgazer.tasks.discover_images_task',
+    name="earthgazer.tasks.discover_images_task",
     max_retries=3,
     autoretry_for=(Exception,),
     retry_backoff=True,
     retry_backoff_max=600,
-    retry_jitter=True
+    retry_jitter=True,
 )
-def discover_images_task(self: Task, location_ids: Optional[List[int]] = None) -> List[int]:
+def discover_images_task(self: Task, location_ids: list[int] | None = None) -> list[int]:
     """
     Celery task: Discover new satellite images from BigQuery.
 
@@ -57,13 +72,14 @@ def discover_images_task(self: Task, location_ids: Optional[List[int]] = None) -
         # If location_ids provided, load those specific locations
         locations = None
         if location_ids:
-            from sqlalchemy import create_engine
-            from sqlalchemy.orm import Session
             from earthgazer.database.definitions import Location
+            from earthgazer.database.session import get_session
 
-            engine = create_engine(settings.database.url, echo=False)
-            with Session(engine) as session:
+            session = next(get_session())
+            try:
                 locations = session.query(Location).where(Location.id.in_(location_ids)).all()
+            finally:
+                session.close()
 
         new_capture_ids = discovery.check_for_new_images(settings, creds, locations)
 
@@ -77,14 +93,14 @@ def discover_images_task(self: Task, location_ids: Optional[List[int]] = None) -
 
 @app.task(
     bind=True,
-    name='earthgazer.tasks.backup_capture_task',
+    name="earthgazer.tasks.backup_capture_task",
     max_retries=5,
     autoretry_for=(Exception,),
     retry_backoff=True,
     retry_backoff_max=600,
-    retry_jitter=True
+    retry_jitter=True,
 )
-def backup_capture_task(self: Task, capture_ids: Optional[List[int]] = None) -> List[int]:
+def backup_capture_task(self: Task, capture_ids: list[int] | None = None) -> list[int]:
     """
     Celery task: Backup captures from public GCS to project bucket.
 
@@ -112,12 +128,12 @@ def backup_capture_task(self: Task, capture_ids: Optional[List[int]] = None) -> 
 
 @app.task(
     bind=True,
-    name='earthgazer.tasks.backup_single_capture_task',
+    name="earthgazer.tasks.backup_single_capture_task",
     max_retries=5,
     autoretry_for=(Exception,),
     retry_backoff=True,
     retry_backoff_max=600,
-    retry_jitter=True
+    retry_jitter=True,
 )
 def backup_single_capture_task(self: Task, capture_id: int) -> int:
     """
@@ -154,18 +170,14 @@ def backup_single_capture_task(self: Task, capture_id: int) -> int:
 
 @app.task(
     bind=True,
-    name='earthgazer.tasks.download_bands_task',
+    name="earthgazer.tasks.download_bands_task",
     max_retries=5,
     autoretry_for=(Exception,),
     retry_backoff=True,
     retry_backoff_max=600,
-    retry_jitter=True
+    retry_jitter=True,
 )
-def download_bands_task(
-    self: Task,
-    capture_id: int,
-    bands: List[str] = None
-) -> Optional[str]:
+def download_bands_task(self: Task, capture_id: int, bands: list[str] = None) -> str | None:
     """
     Celery task: Download specific bands for a capture.
 
@@ -198,18 +210,9 @@ def download_bands_task(
         raise
 
 
-@app.task(
-    bind=True,
-    name='earthgazer.tasks.stack_and_crop_task',
-    max_retries=3,
-    autoretry_for=(Exception,),
-    retry_backoff=True
-)
+@app.task(bind=True, name="earthgazer.tasks.stack_and_crop_task", max_retries=3, autoretry_for=(Exception,), retry_backoff=True)
 def stack_and_crop_task(
-    self: Task,
-    capture_id: int,
-    bands: List[str] = None,
-    bounds: Tuple[float, float, float, float] = None
+    self: Task, capture_id: int, bands: list[str] = None, bounds: tuple[float, float, float, float] = None, force: bool = False
 ) -> dict:
     """
     Celery task: Load, stack, and crop bands for a capture.
@@ -218,16 +221,44 @@ def stack_and_crop_task(
         capture_id: CaptureData ID to process
         bands: List of band identifiers (default: ["B02", "B03", "B04", "B08"])
         bounds: Geographic bounds (min_lon, min_lat, max_lon, max_lat)
+        force: Force reprocessing even if output exists
 
     Returns:
-        Dict with keys: capture_id, bands, shape
+        Dict with keys: capture_id, bands, shape, output_path, gcloud_path
     """
     if bands is None:
         bands = ["B02", "B03", "B04", "B08"]
 
-    logger.info(f"Task {self.request.id}: Stacking and cropping capture {capture_id}")
+    logger.info(f"Task {self.request.id}: Stacking and cropping capture {capture_id} (force={force})")
 
     try:
+        import json
+        from pathlib import Path
+
+        import numpy as np
+
+        from earthgazer.processing.retrieval import ensure_processed_image_available
+        from earthgazer.processing.tracking import register_processed_image
+        from earthgazer.processing.upload import upload_processed_image_to_bucket
+
+        # Convert bounds to dict for database storage
+        bounds_dict = None
+        if bounds:
+            bounds_dict = {"min_lon": bounds[0], "min_lat": bounds[1], "max_lon": bounds[2], "max_lat": bounds[3]}
+
+        # Check if already processed
+        existing_path = ensure_processed_image_available(
+            capture_id=capture_id, image_type="stacked", bands=bands, bounds=bounds_dict, force=force
+        )
+
+        if existing_path:
+            logger.info(f"Task {self.request.id}: Using cached stacked data: {existing_path}")
+            # Load cached file to get shape
+            data = np.load(existing_path, allow_pickle=True)
+            stacked = data["stacked"]
+            return {"capture_id": capture_id, "bands": bands, "shape": stacked.shape, "output_path": existing_path, "cached": True}
+
+        # Process from scratch
         scene_folder = f"data/raw/{capture_id}/"
 
         # Load and stack bands
@@ -237,32 +268,55 @@ def stack_and_crop_task(
         if bounds:
             stacked, meta = preprocessing.crop_and_normalize(stacked, meta, bounds)
 
-        # Store temporarily for next task (in production, could use shared storage)
-        import numpy as np
-        import json
-        temp_path = f"data/processed/stacked_{capture_id}.npz"
+        # Save to persistent location
+        output_dir = Path(f"data/features/{capture_id}")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_path = str(output_dir / "stacked.npz")
 
         # Serialize metadata properly for npz storage
-        # Transform and CRS don't serialize well, so convert to strings
         meta_serialized = {
-            'driver': meta.get('driver', 'GTiff'),
-            'dtype': str(meta.get('dtype', 'float32')),
-            'width': meta.get('width'),
-            'height': meta.get('height'),
-            'count': meta.get('count', 1),
-            'crs': meta['crs'].to_string() if meta.get('crs') else None,
-            'transform': json.dumps(list(meta['transform'])) if meta.get('transform') else None,
-            'nodata': meta.get('nodata'),
+            "driver": meta.get("driver", "GTiff"),
+            "dtype": str(meta.get("dtype", "float32")),
+            "width": meta.get("width"),
+            "height": meta.get("height"),
+            "count": meta.get("count", 1),
+            "crs": meta["crs"].to_string() if meta.get("crs") else None,
+            "transform": json.dumps(list(meta["transform"])) if meta.get("transform") else None,
+            "nodata": meta.get("nodata"),
         }
-        np.savez_compressed(temp_path, stacked=stacked, meta_json=json.dumps(meta_serialized))
+        np.savez_compressed(output_path, stacked=stacked, meta_json=json.dumps(meta_serialized))
 
-        logger.info(f"Task {self.request.id}: Stacked shape {stacked.shape}, saved to {temp_path}")
+        logger.info(f"Task {self.request.id}: Stacked shape {stacked.shape}, saved to {output_path}")
+
+        # Upload to GCloud
+        gcloud_path = None
+        try:
+            gcloud_path = upload_processed_image_to_bucket(local_path=output_path, capture_id=capture_id, image_type="stacked")
+            logger.info(f"Task {self.request.id}: Uploaded to {gcloud_path}")
+        except Exception as e:
+            logger.warning(f"Task {self.request.id}: Failed to upload to GCloud: {e}")
+
+        # Register in database
+        try:
+            register_processed_image(
+                capture_id=capture_id,
+                image_type="stacked",
+                local_path=output_path,
+                gcloud_path=gcloud_path,
+                bands_used=bands,
+                bounds_used=bounds_dict,
+            )
+            logger.info(f"Task {self.request.id}: Registered in database")
+        except Exception as e:
+            logger.warning(f"Task {self.request.id}: Failed to register in database: {e}")
 
         return {
             "capture_id": capture_id,
             "bands": bands,
             "shape": stacked.shape,
-            "temp_path": temp_path
+            "output_path": output_path,
+            "gcloud_path": gcloud_path,
+            "cached": False,
         }
 
     except Exception as e:
@@ -270,15 +324,9 @@ def stack_and_crop_task(
         raise
 
 
-@app.task(
-    bind=True,
-    name='earthgazer.tasks.compute_ndvi_task',
-    max_retries=3
-)
+@app.task(bind=True, name="earthgazer.tasks.compute_ndvi_task", max_retries=3)
 def compute_ndvi_task(
-    self: Task,
-    capture_id: int,
-    bands: List[str] = None
+    self: Task, capture_id: int, bands: list[str] = None, bounds: tuple[float, float, float, float] = None, force: bool = False
 ) -> str:
     """
     Celery task: Compute NDVI for a capture.
@@ -286,6 +334,8 @@ def compute_ndvi_task(
     Args:
         capture_id: CaptureData ID to process
         bands: List of band identifiers (default: ["B02", "B03", "B04", "B08"])
+        bounds: Geographic bounds (for cache matching)
+        force: Force reprocessing even if output exists
 
     Returns:
         Path to saved NDVI GeoTIFF
@@ -293,40 +343,90 @@ def compute_ndvi_task(
     if bands is None:
         bands = ["B02", "B03", "B04", "B08"]
 
-    logger.info(f"Task {self.request.id}: Computing NDVI for capture {capture_id}")
+    logger.info(f"Task {self.request.id}: Computing NDVI for capture {capture_id} (force={force})")
 
     try:
         import json
+        from pathlib import Path
+
         import numpy as np
         from rasterio.crs import CRS
         from rasterio.transform import Affine
 
-        # Load stacked data
-        temp_path = f"data/processed/stacked_{capture_id}.npz"
-        data = np.load(temp_path, allow_pickle=True)
-        stacked = data['stacked']
+        from earthgazer.processing.retrieval import ensure_processed_image_available
+        from earthgazer.processing.tracking import register_processed_image
+        from earthgazer.processing.upload import upload_processed_image_to_bucket
+
+        # Convert bounds to dict for database storage
+        bounds_dict = None
+        if bounds:
+            bounds_dict = {"min_lon": bounds[0], "min_lat": bounds[1], "max_lon": bounds[2], "max_lat": bounds[3]}
+
+        # Check if already processed
+        existing_path = ensure_processed_image_available(
+            capture_id=capture_id, image_type="ndvi", bands=bands, bounds=bounds_dict, force=force
+        )
+
+        if existing_path:
+            logger.info(f"Task {self.request.id}: Using cached NDVI: {existing_path}")
+            return existing_path
+
+        # Load stacked data (check both new and old paths for backward compatibility)
+        stacked_path = f"data/features/{capture_id}/stacked.npz"
+        if not Path(stacked_path).exists():
+            # Fallback to old path
+            stacked_path = f"data/processed/stacked_{capture_id}.npz"
+
+        data = np.load(stacked_path, allow_pickle=True)
+        stacked = data["stacked"]
 
         # Reconstruct metadata from JSON
-        meta_json = json.loads(str(data['meta_json']))
+        meta_json = json.loads(str(data["meta_json"]))
         meta = {
-            'driver': meta_json.get('driver', 'GTiff'),
-            'dtype': meta_json.get('dtype', 'float32'),
-            'width': meta_json.get('width'),
-            'height': meta_json.get('height'),
-            'count': 1,  # NDVI is single band
-            'crs': CRS.from_string(meta_json['crs']) if meta_json.get('crs') else None,
-            'transform': Affine(*json.loads(meta_json['transform'])[:6]) if meta_json.get('transform') else None,
-            'nodata': meta_json.get('nodata'),
+            "driver": meta_json.get("driver", "GTiff"),
+            "dtype": meta_json.get("dtype", "float32"),
+            "width": meta_json.get("width"),
+            "height": meta_json.get("height"),
+            "count": 1,  # NDVI is single band
+            "crs": CRS.from_string(meta_json["crs"]) if meta_json.get("crs") else None,
+            "transform": Affine(*json.loads(meta_json["transform"])[:6]) if meta_json.get("transform") else None,
+            "nodata": meta_json.get("nodata"),
         }
 
         # Compute NDVI
         ndvi = features.compute_ndvi_from_stack(stacked, bands)
 
-        # Save NDVI
-        output_path = f"data/features/ndvi_{capture_id}.tif"
+        # Save to new persistent location
+        output_dir = Path(f"data/features/{capture_id}")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_path = str(output_dir / "ndvi.tif")
+
         io.save_raster(output_path, ndvi, meta)
 
         logger.info(f"Task {self.request.id}: NDVI saved to {output_path}")
+
+        # Upload to GCloud
+        gcloud_path = None
+        try:
+            gcloud_path = upload_processed_image_to_bucket(local_path=output_path, capture_id=capture_id, image_type="ndvi")
+            logger.info(f"Task {self.request.id}: Uploaded to {gcloud_path}")
+        except Exception as e:
+            logger.warning(f"Task {self.request.id}: Failed to upload to GCloud: {e}")
+
+        # Register in database
+        try:
+            register_processed_image(
+                capture_id=capture_id,
+                image_type="ndvi",
+                local_path=output_path,
+                gcloud_path=gcloud_path,
+                bands_used=bands,
+                bounds_used=bounds_dict,
+            )
+            logger.info(f"Task {self.request.id}: Registered in database")
+        except Exception as e:
+            logger.warning(f"Task {self.request.id}: Failed to register in database: {e}")
+
         return output_path
 
     except Exception as e:
@@ -334,15 +434,9 @@ def compute_ndvi_task(
         raise
 
 
-@app.task(
-    bind=True,
-    name='earthgazer.tasks.generate_rgb_task',
-    max_retries=3
-)
+@app.task(bind=True, name="earthgazer.tasks.generate_rgb_task", max_retries=3)
 def generate_rgb_task(
-    self: Task,
-    capture_id: int,
-    bands: List[str] = None
+    self: Task, capture_id: int, bands: list[str] = None, bounds: tuple[float, float, float, float] = None, force: bool = False
 ) -> str:
     """
     Celery task: Generate RGB composite for a capture.
@@ -350,6 +444,8 @@ def generate_rgb_task(
     Args:
         capture_id: CaptureData ID to process
         bands: List of band identifiers (default: ["B02", "B03", "B04", "B08"])
+        bounds: Geographic bounds (for cache matching)
+        force: Force reprocessing even if output exists
 
     Returns:
         Path to saved RGB GeoTIFF
@@ -357,40 +453,90 @@ def generate_rgb_task(
     if bands is None:
         bands = ["B02", "B03", "B04", "B08"]
 
-    logger.info(f"Task {self.request.id}: Generating RGB for capture {capture_id}")
+    logger.info(f"Task {self.request.id}: Generating RGB for capture {capture_id} (force={force})")
 
     try:
         import json
+        from pathlib import Path
+
         import numpy as np
         from rasterio.crs import CRS
         from rasterio.transform import Affine
 
-        # Load stacked data
-        temp_path = f"data/processed/stacked_{capture_id}.npz"
-        data = np.load(temp_path, allow_pickle=True)
-        stacked = data['stacked']
+        from earthgazer.processing.retrieval import ensure_processed_image_available
+        from earthgazer.processing.tracking import register_processed_image
+        from earthgazer.processing.upload import upload_processed_image_to_bucket
+
+        # Convert bounds to dict for database storage
+        bounds_dict = None
+        if bounds:
+            bounds_dict = {"min_lon": bounds[0], "min_lat": bounds[1], "max_lon": bounds[2], "max_lat": bounds[3]}
+
+        # Check if already processed
+        existing_path = ensure_processed_image_available(
+            capture_id=capture_id, image_type="rgb", bands=bands, bounds=bounds_dict, force=force
+        )
+
+        if existing_path:
+            logger.info(f"Task {self.request.id}: Using cached RGB: {existing_path}")
+            return existing_path
+
+        # Load stacked data (check both new and old paths for backward compatibility)
+        stacked_path = f"data/features/{capture_id}/stacked.npz"
+        if not Path(stacked_path).exists():
+            # Fallback to old path
+            stacked_path = f"data/processed/stacked_{capture_id}.npz"
+
+        data = np.load(stacked_path, allow_pickle=True)
+        stacked = data["stacked"]
 
         # Reconstruct metadata from JSON
-        meta_json = json.loads(str(data['meta_json']))
+        meta_json = json.loads(str(data["meta_json"]))
         meta = {
-            'driver': meta_json.get('driver', 'GTiff'),
-            'dtype': meta_json.get('dtype', 'float32'),
-            'width': meta_json.get('width'),
-            'height': meta_json.get('height'),
-            'count': 3,  # RGB is 3 bands
-            'crs': CRS.from_string(meta_json['crs']) if meta_json.get('crs') else None,
-            'transform': Affine(*json.loads(meta_json['transform'])[:6]) if meta_json.get('transform') else None,
-            'nodata': meta_json.get('nodata'),
+            "driver": meta_json.get("driver", "GTiff"),
+            "dtype": meta_json.get("dtype", "float32"),
+            "width": meta_json.get("width"),
+            "height": meta_json.get("height"),
+            "count": 3,  # RGB is 3 bands
+            "crs": CRS.from_string(meta_json["crs"]) if meta_json.get("crs") else None,
+            "transform": Affine(*json.loads(meta_json["transform"])[:6]) if meta_json.get("transform") else None,
+            "nodata": meta_json.get("nodata"),
         }
 
         # Generate RGB
         rgb = features.create_rgb_from_stack(stacked, bands)
 
-        # Save RGB
-        output_path = f"data/features/rgb_{capture_id}.tif"
+        # Save to new persistent location
+        output_dir = Path(f"data/features/{capture_id}")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_path = str(output_dir / "rgb.tif")
+
         io.save_rgb(output_path, rgb, meta)
 
         logger.info(f"Task {self.request.id}: RGB saved to {output_path}")
+
+        # Upload to GCloud
+        gcloud_path = None
+        try:
+            gcloud_path = upload_processed_image_to_bucket(local_path=output_path, capture_id=capture_id, image_type="rgb")
+            logger.info(f"Task {self.request.id}: Uploaded to {gcloud_path}")
+        except Exception as e:
+            logger.warning(f"Task {self.request.id}: Failed to upload to GCloud: {e}")
+
+        # Register in database
+        try:
+            register_processed_image(
+                capture_id=capture_id,
+                image_type="rgb",
+                local_path=output_path,
+                gcloud_path=gcloud_path,
+                bands_used=bands,
+                bounds_used=bounds_dict,
+            )
+            logger.info(f"Task {self.request.id}: Registered in database")
+        except Exception as e:
+            logger.warning(f"Task {self.request.id}: Failed to register in database: {e}")
+
         return output_path
 
     except Exception as e:
@@ -398,15 +544,8 @@ def generate_rgb_task(
         raise
 
 
-@app.task(
-    bind=True,
-    name='earthgazer.tasks.temporal_analysis_task',
-    max_retries=3
-)
-def temporal_analysis_task(
-    self: Task,
-    ndvi_files_pattern: str = "data/features/ndvi_*.tif"
-) -> dict:
+@app.task(bind=True, name="earthgazer.tasks.temporal_analysis_task", max_retries=3)
+def temporal_analysis_task(self: Task, ndvi_files_pattern: str = "data/features/ndvi_*.tif") -> dict:
     """
     Celery task: Perform temporal analysis on NDVI time series.
 
@@ -422,26 +561,14 @@ def temporal_analysis_task(
         settings = EarthGazerSettings()
 
         # Compute time series
-        df = analysis.compute_ndvi_time_series(
-            settings,
-            ndvi_files_pattern,
-            "ndvi_over_time.png"
-        )
+        df = analysis.compute_ndvi_time_series(settings, ndvi_files_pattern, "ndvi_over_time.png")
 
         # Compute trend map
-        slopes = analysis.compute_ndvi_trend_map(
-            settings,
-            ndvi_files_pattern,
-            "ndvi_trend_map.png"
-        )
+        slopes = analysis.compute_ndvi_trend_map(settings, ndvi_files_pattern, "ndvi_trend_map.png")
 
         logger.info(f"Task {self.request.id}: Temporal analysis complete")
 
-        return {
-            "time_series_plot": "ndvi_over_time.png",
-            "trend_map_plot": "ndvi_trend_map.png",
-            "num_records": len(df)
-        }
+        return {"time_series_plot": "ndvi_over_time.png", "trend_map_plot": "ndvi_trend_map.png", "num_records": len(df)}
 
     except Exception as e:
         logger.error(f"Task {self.request.id}: Error in temporal analysis: {e}")

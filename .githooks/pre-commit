@@ -1,0 +1,9 @@
+#!/bin/bash
+set -e
+
+echo "earthgazer: running ruff..."
+
+ruff format
+ruff check --fix --exit-zero
+
+git add -u

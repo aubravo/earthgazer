@@ -6,27 +6,26 @@ Celery tasks into complex processing pipelines.
 """
 
 import logging
-from typing import List, Optional, Tuple
 
-from celery import chain, group, chord
+from celery import chain
+from celery import chord
+from celery import group
 
-from earthgazer.database.definitions import Location, CaptureData
+from earthgazer.database.definitions import CaptureData
+from earthgazer.database.definitions import Location
 from earthgazer.database.session import get_session
-from earthgazer.tasks import (
-    discover_images_task,
-    backup_capture_task,
-    backup_single_capture_task,
-    download_bands_task,
-    stack_and_crop_task,
-    compute_ndvi_task,
-    generate_rgb_task,
-    temporal_analysis_task
-)
+from earthgazer.tasks import backup_single_capture_task
+from earthgazer.tasks import compute_ndvi_task
+from earthgazer.tasks import discover_images_task
+from earthgazer.tasks import download_bands_task
+from earthgazer.tasks import generate_rgb_task
+from earthgazer.tasks import stack_and_crop_task
+from earthgazer.tasks import temporal_analysis_task
 
 logger = logging.getLogger(__name__)
 
 
-def get_location_bounds(location_id: int) -> Tuple[float, float, float, float]:
+def get_location_bounds(location_id: int) -> tuple[float, float, float, float]:
     """
     Get the bounds for a specific location.
 
@@ -47,10 +46,7 @@ def get_location_bounds(location_id: int) -> Tuple[float, float, float, float]:
 
 
 def process_single_capture_workflow(
-    capture_id: int,
-    bands: List[str] = None,
-    bounds: Tuple[float, float, float, float] = None,
-    force: bool = False
+    capture_id: int, bands: list[str] = None, bounds: tuple[float, float, float, float] = None, force: bool = False
 ):
     """
     Workflow to process a single capture through the entire pipeline.
@@ -79,15 +75,10 @@ def process_single_capture_workflow(
     workflow = chain(
         # Step 1: Download bands
         download_bands_task.si(capture_id, bands),
-
         # Step 2: Stack and crop
         stack_and_crop_task.si(capture_id, bands, bounds, force),
-
         # Step 3: Compute NDVI and RGB in parallel
-        group(
-            compute_ndvi_task.si(capture_id, bands, bounds, force),
-            generate_rgb_task.si(capture_id, bands, bounds, force)
-        )
+        group(compute_ndvi_task.si(capture_id, bands, bounds, force), generate_rgb_task.si(capture_id, bands, bounds, force)),
     )
 
     # Execute workflow
@@ -98,11 +89,11 @@ def process_single_capture_workflow(
 
 
 def process_multiple_captures_workflow(
-    capture_ids: List[int],
-    bands: List[str] = None,
-    bounds: Tuple[float, float, float, float] = None,
+    capture_ids: list[int],
+    bands: list[str] = None,
+    bounds: tuple[float, float, float, float] = None,
     run_temporal_analysis: bool = True,
-    force: bool = False
+    force: bool = False,
 ):
     """
     Workflow to process multiple captures in parallel.
@@ -140,10 +131,7 @@ def process_multiple_captures_workflow(
             download_bands_task.si(capture_id, bands),
             stack_and_crop_task.si(capture_id, bands, bounds, force),
             # After stacking, run NDVI and RGB in parallel
-            group(
-                compute_ndvi_task.si(capture_id, bands, bounds, force),
-                generate_rgb_task.si(capture_id, bands, bounds, force)
-            )
+            group(compute_ndvi_task.si(capture_id, bands, bounds, force), generate_rgb_task.si(capture_id, bands, bounds, force)),
         )
         all_processing_tasks.append(capture_chain)
 
@@ -162,7 +150,7 @@ def process_multiple_captures_workflow(
     return workflow
 
 
-def discovery_and_backup_workflow(location_ids: Optional[List[int]] = None):
+def discovery_and_backup_workflow(location_ids: list[int] | None = None):
     """
     Workflow to discover new images and back them up.
 
@@ -194,10 +182,7 @@ def discovery_and_backup_workflow(location_ids: Optional[List[int]] = None):
 
     # Create individual backup tasks for each capture
     # This allows parallel execution across workers
-    backup_tasks = [
-        backup_single_capture_task.si(capture_id)
-        for capture_id in capture_ids
-    ]
+    backup_tasks = [backup_single_capture_task.si(capture_id) for capture_id in capture_ids]
 
     # Execute all backup tasks in parallel
     backup_group = group(backup_tasks)
@@ -210,11 +195,11 @@ def discovery_and_backup_workflow(location_ids: Optional[List[int]] = None):
 
 
 def full_pipeline_workflow(
-    location_ids: Optional[List[int]] = None,
-    bands: List[str] = None,
-    bounds: Tuple[float, float, float, float] = None,
-    mission_filter: Optional[str] = "SENTINEL-2A",
-    force: bool = False
+    location_ids: list[int] | None = None,
+    bands: list[str] = None,
+    bounds: tuple[float, float, float, float] = None,
+    mission_filter: str | None = "SENTINEL-2A",
+    force: bool = False,
 ):
     """
     Complete end-to-end workflow: discovery → backup → processing → analysis.
@@ -256,21 +241,18 @@ def full_pipeline_workflow(
 
     # Step 2: Backup - individual task per capture
     logger.info(f"Step 2: Creating {len(discovered_capture_ids)} individual backup tasks...")
-    backup_tasks = [
-        backup_single_capture_task.si(capture_id)
-        for capture_id in discovered_capture_ids
-    ]
+    backup_tasks = [backup_single_capture_task.si(capture_id) for capture_id in discovered_capture_ids]
     backup_group = group(backup_tasks)
     backup_result = backup_group.apply_async()
 
     # Wait for all backups to complete
     backup_result.get(timeout=600)  # 10 minute timeout for backups
-    logger.info(f"All backups completed")
+    logger.info("All backups completed")
 
     # Step 3: Query backed-up captures (optionally filtered by mission)
     session = next(get_session())
     try:
-        query = session.query(CaptureData).where(CaptureData.backed_up == True)
+        query = session.query(CaptureData).where(CaptureData.backed_up)
 
         if mission_filter:
             query = query.where(CaptureData.mission_id == mission_filter)
@@ -285,13 +267,7 @@ def full_pipeline_workflow(
     # Step 4 & 5: Process all captures with individual tasks and run analysis
     if capture_ids:
         logger.info(f"Step 4-5: Processing {len(capture_ids)} captures with individual task chains...")
-        processing_result = process_multiple_captures_workflow(
-            capture_ids,
-            bands,
-            bounds,
-            run_temporal_analysis=True,
-            force=force
-        )
+        processing_result = process_multiple_captures_workflow(capture_ids, bands, bounds, run_temporal_analysis=True, force=force)
         return processing_result
     else:
         logger.warning("No captures found to process")
@@ -299,11 +275,11 @@ def full_pipeline_workflow(
 
 
 def reprocess_existing_captures_workflow(
-    mission_filter: Optional[str] = "SENTINEL-2A",
-    bands: List[str] = None,
-    bounds: Tuple[float, float, float, float] = None,
-    limit: Optional[int] = None,
-    force: bool = False
+    mission_filter: str | None = "SENTINEL-2A",
+    bands: list[str] = None,
+    bounds: tuple[float, float, float, float] = None,
+    limit: int | None = None,
+    force: bool = False,
 ):
     """
     Workflow to reprocess existing backed-up captures.
@@ -329,7 +305,7 @@ def reprocess_existing_captures_workflow(
     # Get backed-up captures
     session = next(get_session())
     try:
-        query = session.query(CaptureData).where(CaptureData.backed_up == True)
+        query = session.query(CaptureData).where(CaptureData.backed_up)
 
         if mission_filter:
             query = query.where(CaptureData.mission_id == mission_filter)
@@ -345,13 +321,7 @@ def reprocess_existing_captures_workflow(
     logger.info(f"Reprocessing {len(capture_ids)} captures")
 
     if capture_ids:
-        return process_multiple_captures_workflow(
-            capture_ids,
-            bands,
-            bounds,
-            run_temporal_analysis=True,
-            force=force
-        )
+        return process_multiple_captures_workflow(capture_ids, bands, bounds, run_temporal_analysis=True, force=force)
     else:
         logger.warning("No captures found to reprocess")
         return None
@@ -359,11 +329,11 @@ def reprocess_existing_captures_workflow(
 
 def process_location_captures_workflow(
     location_id: int,
-    bands: List[str] = None,
-    mission_filter: Optional[str] = None,
-    limit: Optional[int] = None,
+    bands: list[str] = None,
+    mission_filter: str | None = None,
+    limit: int | None = None,
     run_temporal_analysis: bool = True,
-    force: bool = False
+    force: bool = False,
 ):
     """
     Workflow to process all backed-up captures for a specific location.
@@ -399,7 +369,7 @@ def process_location_captures_workflow(
     # Get backed-up captures
     session = next(get_session())
     try:
-        query = session.query(CaptureData).where(CaptureData.backed_up == True)
+        query = session.query(CaptureData).where(CaptureData.backed_up)
 
         if mission_filter:
             query = query.where(CaptureData.mission_id == mission_filter)
@@ -417,13 +387,7 @@ def process_location_captures_workflow(
     logger.info(f"Found {len(capture_ids)} backed-up captures to process")
 
     if capture_ids:
-        return process_multiple_captures_workflow(
-            capture_ids,
-            bands,
-            bounds,
-            run_temporal_analysis=run_temporal_analysis,
-            force=force
-        )
+        return process_multiple_captures_workflow(capture_ids, bands, bounds, run_temporal_analysis=run_temporal_analysis, force=force)
     else:
         logger.warning("No captures found to process for location")
         return None

@@ -79,10 +79,8 @@ class Location(Base):
     @property
     def center(self) -> tuple[float, float]:
         """Return center point as (longitude, latitude) tuple."""
-        return (
-            (self.min_lon + self.max_lon) / 2,
-            (self.min_lat + self.max_lat) / 2
-        )
+        return ((self.min_lon + self.max_lon) / 2, (self.min_lat + self.max_lat) / 2)
+
 
 class CaptureData(Base):
     __tablename__ = "capture_data"
@@ -113,6 +111,7 @@ class CaptureData(Base):
 
 class TaskExecution(Base):
     """Track individual Celery task executions for monitoring and debugging."""
+
     __tablename__ = "task_executions"
     __table_args__ = {"schema": "earthgazer"}
 
@@ -133,6 +132,7 @@ class TaskExecution(Base):
 
 class ProcessingJob(Base):
     """Track multi-task processing jobs (workflows) for high-level monitoring."""
+
     __tablename__ = "processing_jobs"
     __table_args__ = {"schema": "earthgazer"}
 
@@ -152,11 +152,12 @@ class ProcessingJob(Base):
 
 class ProcessedImage(Base):
     """Track processed satellite images with storage locations and metadata."""
+
     __tablename__ = "processed_images"
     __table_args__ = (
-        Index('ix_processed_images_capture_type', 'capture_id', 'image_type'),
-        Index('ix_processed_images_capture_available', 'capture_id', 'local_available'),
-        {"schema": "earthgazer"}
+        Index("ix_processed_images_capture_type", "capture_id", "image_type"),
+        Index("ix_processed_images_capture_available", "capture_id", "local_available"),
+        {"schema": "earthgazer"},
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)

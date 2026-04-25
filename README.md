@@ -8,6 +8,35 @@
 This is my master's thesis project.
 It's an hyperspectral-satellite-image multi-tool that allows monitoring of available images, storage, tracking, preprocessing, and post-processing of said images with the intent of generating a dataset for training models for image processing.
 
+## Contributing
+
+Contributions are welcome! Please follow these steps:
+
+1. **Fork** the repository and clone your fork locally.
+2. **Create a branch** from `main` with a descriptive name:
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
+3. **Enable the versioned git hooks** (required once after cloning):
+   ```bash
+   git config core.hooksPath .githooks
+   ```
+   This installs two hooks:
+   - `pre-commit` — runs `ruff check --fix` and `ruff format`, then re-stages any changes automatically.
+   - `pre-push` — updates the build number in `earthgazer/__init__.py` to the current commit hash.
+4. **Install the package** in editable mode and apply database migrations:
+   ```bash
+   pip install -e .
+   alembic upgrade head
+   ```
+5. **Make your changes.** The pre-commit hook handles linting and formatting automatically, but you can also run ruff manually:
+   ```bash
+   ruff check .
+   ruff format .
+   ```
+6. **Commit** your changes with a clear, descriptive message.
+7. **Push** your branch and open a **Pull Request** against `main`. Describe what the PR does and why.
+
 ## Configuration
 
 ### Data Storage Path

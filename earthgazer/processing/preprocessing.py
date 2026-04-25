@@ -5,20 +5,18 @@ Preprocessing module for band stacking, cropping, and normalization.
 import glob
 import logging
 import os
-from typing import Dict, List, Tuple
 
 import numpy as np
 import rasterio
-from rasterio.warp import reproject, Resampling, transform_bounds
+from rasterio.warp import Resampling
+from rasterio.warp import reproject
+from rasterio.warp import transform_bounds
 from rasterio.windows import from_bounds
 
 logger = logging.getLogger(__name__)
 
 
-def load_and_stack_bands(
-    scene_folder: str,
-    bands: List[str] = None
-) -> Tuple[np.ndarray, Dict]:
+def load_and_stack_bands(scene_folder: str, bands: list[str] = None) -> tuple[np.ndarray, dict]:
     """
     Load and stack multi-spectral bands from a folder.
 
@@ -62,17 +60,17 @@ def load_and_stack_bands(
                 band_ref = band
             else:
                 # Resample band if resolution differs
-                if src.shape != (ref_meta['height'], ref_meta['width']):
+                if src.shape != (ref_meta["height"], ref_meta["width"]):
                     logger.debug(f"Resampling band {bands[i]} from {src.shape} to reference shape")
-                    resampled = np.empty((ref_meta['height'], ref_meta['width']), dtype=np.float32)
+                    resampled = np.empty((ref_meta["height"], ref_meta["width"]), dtype=np.float32)
                     reproject(
                         source=rasterio.band(src, 1),
                         destination=resampled,
                         src_transform=src.transform,
                         src_crs=src.crs,
-                        dst_transform=ref_meta['transform'],
-                        dst_crs=ref_meta['crs'],
-                        resampling=Resampling.bilinear
+                        dst_transform=ref_meta["transform"],
+                        dst_crs=ref_meta["crs"],
+                        resampling=Resampling.bilinear,
                     )
                     band = resampled
 
@@ -84,11 +82,7 @@ def load_and_stack_bands(
     return stacked, ref_meta
 
 
-def crop_and_normalize(
-    image: np.ndarray,
-    meta: Dict,
-    bounds: Tuple[float, float, float, float]
-) -> Tuple[np.ndarray, Dict]:
+def crop_and_normalize(image: np.ndarray, meta: dict, bounds: tuple[float, float, float, float]) -> tuple[np.ndarray, dict]:
     """
     Crop and normalize (north-up) image to a given lat/lon bounding box.
 
@@ -113,19 +107,13 @@ def crop_and_normalize(
     window = window.round_offsets().round_shape()
 
     # Crop image
-    cropped = image[
-        :,
-        int(window.row_off):int(window.row_off + window.height),
-        int(window.col_off):int(window.col_off + window.width)
-    ]
+    cropped = image[:, int(window.row_off) : int(window.row_off + window.height), int(window.col_off) : int(window.col_off + window.width)]
 
     # Update metadata
     meta_cropped = meta.copy()
-    meta_cropped.update({
-        "height": cropped.shape[1],
-        "width": cropped.shape[2],
-        "transform": rasterio.windows.transform(window, meta["transform"])
-    })
+    meta_cropped.update(
+        {"height": cropped.shape[1], "width": cropped.shape[2], "transform": rasterio.windows.transform(window, meta["transform"])}
+    )
 
     # Ensure north-up orientation
     if meta_cropped["transform"].a < 0 or meta_cropped["transform"].e > 0:

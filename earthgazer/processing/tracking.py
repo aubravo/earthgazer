@@ -10,13 +10,12 @@ import json
 import logging
 import os
 from datetime import datetime
-from pathlib import Path
-from typing import Optional
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from earthgazer.database.definitions import ProcessedImage, ImageType
+from earthgazer.database.definitions import ImageType
+from earthgazer.database.definitions import ProcessedImage
 from earthgazer.database.session import get_session
 
 logger = logging.getLogger(__name__)
@@ -25,9 +24,9 @@ logger = logging.getLogger(__name__)
 def _get_image_type_enum(image_type: str) -> ImageType:
     """Convert string image type to ImageType enum."""
     type_map = {
-        'ndvi': ImageType.NDVI,
-        'rgb': ImageType.RGB,
-        'stacked': ImageType.STACKED,
+        "ndvi": ImageType.NDVI,
+        "rgb": ImageType.RGB,
+        "stacked": ImageType.STACKED,
     }
     if image_type.lower() not in type_map:
         raise ValueError(f"Invalid image type: {image_type}. Must be one of: ndvi, rgb, stacked")
@@ -56,12 +55,12 @@ def register_processed_image(
     capture_id: int,
     image_type: str,
     local_path: str,
-    gcloud_path: Optional[str] = None,
-    bands_used: Optional[list] = None,
-    bounds_used: Optional[dict] = None,
-    file_size: Optional[int] = None,
-    file_hash: Optional[str] = None,
-    processing_version: str = "1.0"
+    gcloud_path: str | None = None,
+    bands_used: list | None = None,
+    bounds_used: dict | None = None,
+    file_size: int | None = None,
+    file_hash: str | None = None,
+    processing_version: str = "1.0",
 ) -> ProcessedImage:
     """
     Register a processed image in the database.
@@ -103,7 +102,7 @@ def register_processed_image(
         ProcessedImage.capture_id == capture_id,
         ProcessedImage.image_type == image_type_enum,
         ProcessedImage.bands_used == bands_json,
-        ProcessedImage.bounds_used == bounds_json
+        ProcessedImage.bounds_used == bounds_json,
     )
     existing = session.execute(stmt).scalar_one_or_none()
 
@@ -135,7 +134,7 @@ def register_processed_image(
             file_size_bytes=file_size,
             file_hash=file_hash,
             local_available=os.path.exists(local_path),
-            gcloud_available=gcloud_path is not None
+            gcloud_available=gcloud_path is not None,
         )
         session.add(processed_image)
         session.commit()
@@ -143,12 +142,7 @@ def register_processed_image(
         return processed_image
 
 
-def get_processed_image(
-    capture_id: int,
-    image_type: str,
-    bands: Optional[list] = None,
-    bounds: Optional[dict] = None
-) -> Optional[ProcessedImage]:
+def get_processed_image(capture_id: int, image_type: str, bands: list | None = None, bounds: dict | None = None) -> ProcessedImage | None:
     """
     Get processed image record matching parameters.
 
@@ -171,10 +165,7 @@ def get_processed_image(
     bounds_json = json.dumps(bounds) if bounds else None
 
     # Query for matching record
-    stmt = select(ProcessedImage).where(
-        ProcessedImage.capture_id == capture_id,
-        ProcessedImage.image_type == image_type_enum
-    )
+    stmt = select(ProcessedImage).where(ProcessedImage.capture_id == capture_id, ProcessedImage.image_type == image_type_enum)
 
     # Add bands filter if provided
     if bands_json:
@@ -223,10 +214,7 @@ def verify_local_file_exists(processed_image: ProcessedImage) -> bool:
     return exists
 
 
-def mark_uploaded_to_gcloud(
-    processed_image_id: int,
-    gcloud_path: str
-) -> bool:
+def mark_uploaded_to_gcloud(processed_image_id: int, gcloud_path: str) -> bool:
     """
     Mark image as uploaded to GCloud.
 
@@ -281,7 +269,7 @@ def cleanup_missing_local_files() -> int:
     """
     session: Session = next(get_session())
 
-    stmt = select(ProcessedImage).where(ProcessedImage.local_available == True)
+    stmt = select(ProcessedImage).where(ProcessedImage.local_available)
     all_records = session.execute(stmt).scalars().all()
 
     updated_count = 0

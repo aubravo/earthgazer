@@ -6,7 +6,6 @@ import logging
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
 
 from google.cloud import storage
 from google.oauth2 import service_account
@@ -20,10 +19,8 @@ logger = logging.getLogger(__name__)
 
 
 def backup_capture_to_project_bucket(
-    settings: EarthGazerSettings,
-    service_account_creds: service_account.Credentials,
-    capture_ids: List[int] = None
-) -> List[int]:
+    settings: EarthGazerSettings, service_account_creds: service_account.Credentials, capture_ids: list[int] = None
+) -> list[int]:
     """
     Back up raw imagery from public GCS buckets to project bucket.
 
@@ -38,9 +35,7 @@ def backup_capture_to_project_bucket(
     logger.info("Starting capture backup process")
 
     gcs_url_parser = re.compile(r"gs://(?P<bucket_name>.*?)/(?P<blobs_path_name>.*)")
-    blob_finder = re.compile(
-        r"^.*?(?:tiles.*?IMG_DATA.*?|/LC0[0-9]_.*?)_(?P<file_id>B[0-9A]{1,2}|MTL)\.(?P<format>TIF|jp2|txt)$"
-    )
+    blob_finder = re.compile(r"^.*?(?:tiles.*?IMG_DATA.*?|/LC0[0-9]_.*?)_(?P<file_id>B[0-9A]{1,2}|MTL)\.(?P<format>TIF|jp2|txt)$")
 
     storage_client = storage.Client(credentials=service_account_creds)
     destination_bucket = storage_client.bucket(settings.gcloud.bucket_name)
@@ -50,11 +45,7 @@ def backup_capture_to_project_bucket(
     try:
         # Build query for captures to backup
         query = session.query(CaptureData).where(
-            CaptureData.backed_up == False,
-            or_(
-                CaptureData.mission_id.like("%LANDSAT_8%"),
-                CaptureData.mission_id.like("SENTINEL-2%")
-            )
+            ~CaptureData.backed_up, or_(CaptureData.mission_id.like("%LANDSAT_8%"), CaptureData.mission_id.like("SENTINEL-2%"))
         )
 
         # Filter by specific IDs if provided
@@ -76,11 +67,7 @@ def backup_capture_to_project_bucket(
                 for blob in storage_client.list_blobs(source_bucket, prefix=parsed_base_url["blobs_path_name"]):
                     if selected_blob := blob_finder.search(blob.name):
                         source_blob = blob.name
-                        destination_blob = blob.name.replace(
-                            parsed_base_url["blobs_path_name"],
-                            f"capture_data/{data.id}",
-                            1
-                        )
+                        destination_blob = blob.name.replace(parsed_base_url["blobs_path_name"], f"capture_data/{data.id}", 1)
                         blob_copy = source_bucket.copy_blob(blob, destination_bucket, destination_blob)
                         blobs_copied += 1
 
@@ -108,11 +95,8 @@ def backup_capture_to_project_bucket(
 
 
 def download_capture_bands(
-    settings: EarthGazerSettings,
-    service_account_creds: service_account.Credentials,
-    capture_id: int,
-    bands: List[str]
-) -> Optional[str]:
+    settings: EarthGazerSettings, service_account_creds: service_account.Credentials, capture_id: int, bands: list[str]
+) -> str | None:
     """
     Download specific bands for a capture from project bucket to local storage.
 

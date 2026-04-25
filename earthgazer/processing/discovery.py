@@ -5,12 +5,12 @@ Image discovery module for querying satellite imagery from BigQuery.
 import json
 import logging
 from pathlib import Path
-from typing import List
 
 from google.cloud import bigquery
 from google.oauth2 import service_account
 
-from earthgazer.database.definitions import Location, CaptureData
+from earthgazer.database.definitions import CaptureData
+from earthgazer.database.definitions import Location
 from earthgazer.database.session import get_session
 from earthgazer.settings import EarthGazerSettings
 
@@ -25,10 +25,8 @@ def load_platform_definitions() -> dict:
 
 
 def check_for_new_images(
-    settings: EarthGazerSettings,
-    service_account_creds: service_account.Credentials,
-    locations: List[Location] = None
-) -> List[int]:
+    settings: EarthGazerSettings, service_account_creds: service_account.Credentials, locations: list[Location] = None
+) -> list[int]:
     """
     Query BigQuery for new satellite imagery and store in database.
 
@@ -69,31 +67,31 @@ def check_for_new_images(
             # Query for images that overlap with the location's bounding box
             # An image overlaps if its bounds intersect with the location bounds
             query = f"""SELECT
-                {platform['main_id']} AS main_id,
-                {platform['secondary_id']} AS secondary_id,
-                {platform['mission_id']} AS mission_id,
-                {platform['sensing_time']} AS sensing_time,
-                {platform['cloud_cover']} AS cloud_cover,
-                {platform['north_lat']} AS north_lat,
-                {platform['south_lat']} AS south_lat,
-                {platform['west_lon']} AS west_lon,
-                {platform['east_lon']} AS east_lon,
-                {platform['base_url']} AS base_url,
-                {platform['mgrs_tile']} AS mgrs_tile,
-                {platform['radiometric_measure']} AS radiometric_measure,
-                {platform['athmospheric_reference_level']} AS athmospheric_reference_level,
-                {platform['wrs_path']} AS wrs_path,
-                {platform['wrs_row']} AS wrs_row,
-                {platform['data_type']} AS data_type
-                FROM {platform['bigquery_path']}
+                {platform["main_id"]} AS main_id,
+                {platform["secondary_id"]} AS secondary_id,
+                {platform["mission_id"]} AS mission_id,
+                {platform["sensing_time"]} AS sensing_time,
+                {platform["cloud_cover"]} AS cloud_cover,
+                {platform["north_lat"]} AS north_lat,
+                {platform["south_lat"]} AS south_lat,
+                {platform["west_lon"]} AS west_lon,
+                {platform["east_lon"]} AS east_lon,
+                {platform["base_url"]} AS base_url,
+                {platform["mgrs_tile"]} AS mgrs_tile,
+                {platform["radiometric_measure"]} AS radiometric_measure,
+                {platform["athmospheric_reference_level"]} AS athmospheric_reference_level,
+                {platform["wrs_path"]} AS wrs_path,
+                {platform["wrs_row"]} AS wrs_row,
+                {platform["data_type"]} AS data_type
+                FROM {platform["bigquery_path"]}
                 WHERE
-                {platform['sensing_time']} >= '{location.from_date}' AND
-                {platform['sensing_time']} <= '{location.to_date}' AND
-                {platform['north_lat']} >= {location.min_lat} AND
-                {platform['south_lat']} <= {location.max_lat} AND
-                {platform['west_lon']} <= {location.max_lon} AND
-                {platform['east_lon']} >= {location.min_lon} AND
-                {platform['base_url']} IS NOT NULL
+                {platform["sensing_time"]} >= '{location.from_date}' AND
+                {platform["sensing_time"]} <= '{location.to_date}' AND
+                {platform["north_lat"]} >= {location.min_lat} AND
+                {platform["south_lat"]} <= {location.max_lat} AND
+                {platform["west_lon"]} <= {location.max_lon} AND
+                {platform["east_lon"]} >= {location.min_lon} AND
+                {platform["base_url"]} IS NOT NULL
             """
             queries.append(query)
 
@@ -109,10 +107,11 @@ def check_for_new_images(
             try:
                 for result in bigquery_client.query(query):
                     # Check if capture already exists
-                    existing = session.query(CaptureData).where(
-                        CaptureData.main_id == result.main_id,
-                        CaptureData.mission_id == result.mission_id
-                    ).scalar()
+                    existing = (
+                        session.query(CaptureData)
+                        .where(CaptureData.main_id == result.main_id, CaptureData.mission_id == result.mission_id)
+                        .scalar()
+                    )
 
                     if existing:
                         logger.debug(f"CaptureData {result.main_id} ({result.mission_id}) already exists")
@@ -135,7 +134,7 @@ def check_for_new_images(
                         mgrs_tile=result.mgrs_tile,
                         wrs_path=result.wrs_path,
                         wrs_row=result.wrs_row,
-                        data_type=result.data_type
+                        data_type=result.data_type,
                     )
                     capture.add(session)
                     session.flush()

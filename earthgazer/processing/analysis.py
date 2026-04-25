@@ -6,7 +6,6 @@ import glob
 import logging
 import re
 from pathlib import Path
-from typing import List, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -22,9 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 def compute_ndvi_time_series(
-    settings: EarthGazerSettings,
-    ndvi_files_pattern: str = "data/features/ndvi_*.tif",
-    output_path: str = "ndvi_over_time.png"
+    settings: EarthGazerSettings, ndvi_files_pattern: str = "data/features/ndvi_*.tif", output_path: str = "ndvi_over_time.png"
 ) -> pd.DataFrame:
     """
     Compute mean NDVI over time from a series of NDVI GeoTIFF files.
@@ -53,7 +50,7 @@ def compute_ndvi_time_series(
             logger.debug(f"Processing {file}")
 
             # Extract capture ID from filename
-            match = re.search(r'(\d+)\.tif', file)
+            match = re.search(r"(\d+)\.tif", file)
             if not match:
                 logger.warning(f"Could not extract ID from filename: {file}")
                 continue
@@ -76,10 +73,7 @@ def compute_ndvi_time_series(
                 ndvi = np.where((ndvi > -1) & (ndvi < 1), ndvi, np.nan)
                 mean_ndvi = np.nanmean(ndvi)
 
-            records.append({
-                "sensing_date": sensing_date,
-                "mean_ndvi": mean_ndvi
-            })
+            records.append({"sensing_date": sensing_date, "mean_ndvi": mean_ndvi})
     finally:
         session.close()
 
@@ -109,7 +103,7 @@ def compute_ndvi_trend_map(
     settings: EarthGazerSettings,
     ndvi_files_pattern: str = "data/features/ndvi_*.tif",
     output_path: str = "ndvi_trend_map.png",
-    min_valid_years: int = 5
+    min_valid_years: int = 5,
 ) -> np.ndarray:
     """
     Compute pixel-wise NDVI trend (slope) over time using linear regression.
@@ -140,7 +134,7 @@ def compute_ndvi_trend_map(
     try:
         for file in ndvi_files:
             # Extract capture ID
-            match = re.search(r'(\d+)\.tif', file)
+            match = re.search(r"(\d+)\.tif", file)
             if not match:
                 continue
 

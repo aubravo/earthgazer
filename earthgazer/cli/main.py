@@ -5,18 +5,21 @@ Main entry point for the CLI application.
 """
 
 import logging
+
 import click
 
-from earthgazer import __version__, __build__
-from earthgazer.cli.commands.status import status, watch
-from earthgazer.cli.commands.monitoring import monitoring
+from earthgazer import __build__
+from earthgazer import __version__
 from earthgazer.cli.commands.captures import captures
-from earthgazer.cli.commands.workflows import workflows
 from earthgazer.cli.commands.locations import locations
+from earthgazer.cli.commands.monitoring import monitoring
+from earthgazer.cli.commands.status import status
+from earthgazer.cli.commands.status import watch
+from earthgazer.cli.commands.workflows import workflows
 
 
 @click.group()
-@click.option('--verbose', '-v', is_flag=True, help='Enable verbose output (DEBUG level)')
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose output (DEBUG level)")
 @click.version_option(version=f"{__version__} (build: {__build__})", prog_name="earthgazer")
 def cli(verbose):
     """
@@ -27,17 +30,14 @@ def cli(verbose):
     """
     # Configure logging level based on verbose flag
     log_level = logging.DEBUG if verbose else logging.WARNING
-    logging.basicConfig(
-        level=log_level,
-        format='%(levelname)s:%(name)s:%(message)s'
-    )
+    logging.basicConfig(level=log_level, format="%(levelname)s:%(name)s:%(message)s")
 
     # Set specific loggers to WARNING unless verbose
     if not verbose:
-        logging.getLogger('earthgazer').setLevel(logging.WARNING)
-        logging.getLogger('celery').setLevel(logging.WARNING)
-        logging.getLogger('kombu').setLevel(logging.WARNING)
-        logging.getLogger('flower').setLevel(logging.WARNING)
+        logging.getLogger("earthgazer").setLevel(logging.WARNING)
+        logging.getLogger("celery").setLevel(logging.WARNING)
+        logging.getLogger("kombu").setLevel(logging.WARNING)
+        logging.getLogger("flower").setLevel(logging.WARNING)
 
 
 @click.command()
@@ -64,5 +64,5 @@ def main():
     cli()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

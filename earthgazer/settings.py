@@ -9,6 +9,7 @@ from sqlalchemy import URL
 
 logging.basicConfig(level=logging.DEBUG)
 
+
 class DatabaseManagerSettings(BaseSettings, extra="allow"):
     drivername: str = "sqlite"
     username: str | None = None
@@ -44,7 +45,6 @@ class GcloudSettings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_service_account(self):
-
         if not self.service_account:
             logging.debug("Service account is empty, returning None")
             return self
@@ -55,16 +55,22 @@ class GcloudSettings(BaseSettings):
 
         logging.debug("Validating service account")
 
+        # Try to decode base64 first
+        decoded_str = self.service_account
         try:
-            self.service_account = base64.b64decode(self.service_account)
-        except (ValueError, TypeError):
-            logging.debug("Service account is not base64 encoded")
+            decoded_bytes = base64.b64decode(self.service_account)
+            decoded_str = decoded_bytes.decode("utf-8")
+            logging.debug("Service account was base64 encoded, decoded successfully")
+        except (ValueError, TypeError, AttributeError) as e:
+            logging.debug(f"Service account is not base64 encoded: {e}")
+            # decoded_str is still the original string
 
+        # Now parse as JSON
         try:
-            self.service_account = json.loads(self.service_account)
+            self.service_account = json.loads(decoded_str)
             logging.debug("Service account is valid JSON")
-        except json.JSONDecodeError:
-            raise Exception("Service account is not a valid JSON")
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Service account is not valid JSON: {e}") from e
 
         return self
 

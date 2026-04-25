@@ -4,7 +4,6 @@ Upload and download module for processed satellite images to/from Google Cloud S
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 from google.cloud import storage
 from google.oauth2 import service_account
@@ -14,9 +13,7 @@ from earthgazer.settings import EarthGazerSettings
 logger = logging.getLogger(__name__)
 
 
-def get_gcs_client(
-    settings: Optional[EarthGazerSettings] = None
-) -> tuple[storage.Client, str]:
+def get_gcs_client(settings: EarthGazerSettings | None = None) -> tuple[storage.Client, str]:
     """
     Get Google Cloud Storage client and bucket name from settings.
 
@@ -35,19 +32,15 @@ def get_gcs_client(
 
     if isinstance(settings.gcloud.service_account, str):
         raise ValueError(
-            "GCloud service account is still a string. "
-            "Check that EARTHGAZER__GCLOUD__SERVICE_ACCOUNT is properly base64-encoded JSON."
+            "GCloud service account is still a string. Check that EARTHGAZER__GCLOUD__SERVICE_ACCOUNT is properly base64-encoded JSON."
         )
 
     if not isinstance(settings.gcloud.service_account, dict):
-        raise ValueError(
-            f"GCloud service account must be a dict, got {type(settings.gcloud.service_account)}"
-        )
+        raise ValueError(f"GCloud service account must be a dict, got {type(settings.gcloud.service_account)}")
 
     # Create service account credentials
     service_account_creds = service_account.Credentials.from_service_account_info(
-        settings.gcloud.service_account,
-        scopes=["https://www.googleapis.com/auth/cloud-platform"]
+        settings.gcloud.service_account, scopes=["https://www.googleapis.com/auth/cloud-platform"]
     )
 
     storage_client = storage.Client(credentials=service_account_creds)
@@ -57,11 +50,7 @@ def get_gcs_client(
 
 
 def upload_processed_image_to_bucket(
-    local_path: str,
-    capture_id: int,
-    image_type: str,
-    bucket_name: Optional[str] = None,
-    settings: Optional[EarthGazerSettings] = None
+    local_path: str, capture_id: int, image_type: str, bucket_name: str | None = None, settings: EarthGazerSettings | None = None
 ) -> str:
     """
     Upload processed image to GCloud bucket.
@@ -113,11 +102,7 @@ def upload_processed_image_to_bucket(
 
 
 def download_processed_image_from_bucket(
-    capture_id: int,
-    image_type: str,
-    local_path: str,
-    bucket_name: Optional[str] = None,
-    settings: Optional[EarthGazerSettings] = None
+    capture_id: int, image_type: str, local_path: str, bucket_name: str | None = None, settings: EarthGazerSettings | None = None
 ) -> bool:
     """
     Download processed image from GCloud bucket.
@@ -168,11 +153,7 @@ def download_processed_image_from_bucket(
 
 
 def check_processed_image_exists_in_bucket(
-    capture_id: int,
-    image_type: str,
-    extension: str = ".tif",
-    bucket_name: Optional[str] = None,
-    settings: Optional[EarthGazerSettings] = None
+    capture_id: int, image_type: str, extension: str = ".tif", bucket_name: str | None = None, settings: EarthGazerSettings | None = None
 ) -> bool:
     """
     Check if processed image exists in GCloud bucket.
@@ -209,11 +190,7 @@ def check_processed_image_exists_in_bucket(
 
 
 def get_gcs_url_for_processed_image(
-    capture_id: int,
-    image_type: str,
-    extension: str = ".tif",
-    bucket_name: Optional[str] = None,
-    settings: Optional[EarthGazerSettings] = None
+    capture_id: int, image_type: str, extension: str = ".tif", bucket_name: str | None = None, settings: EarthGazerSettings | None = None
 ) -> str:
     """
     Get GCS URL for a processed image without checking if it exists.

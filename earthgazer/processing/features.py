@@ -3,17 +3,13 @@ Feature extraction module for computing NDVI and RGB composites.
 """
 
 import logging
-from typing import List
 
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
 
-def compute_ndvi_from_stack(
-    stacked: np.ndarray,
-    bands: List[str] = None
-) -> np.ndarray:
+def compute_ndvi_from_stack(stacked: np.ndarray, bands: list[str] = None) -> np.ndarray:
     """
     Compute Normalized Difference Vegetation Index (NDVI) from stacked bands.
 
@@ -52,15 +48,12 @@ def compute_ndvi_from_stack(
     if valid_count > 0:
         logger.info(f"NDVI computed. Range: [{np.nanmin(ndvi):.3f}, {np.nanmax(ndvi):.3f}], Mean: {np.nanmean(ndvi):.3f}")
     else:
-        logger.warning(f"NDVI computed but contains no valid data (all NaN)")
+        logger.warning("NDVI computed but contains no valid data (all NaN)")
 
     return ndvi
 
 
-def create_rgb_from_stack(
-    stacked: np.ndarray,
-    bands: List[str] = None
-) -> np.ndarray:
+def create_rgb_from_stack(stacked: np.ndarray, bands: list[str] = None) -> np.ndarray:
     """
     Create an RGB true-color composite from stacked bands.
 
