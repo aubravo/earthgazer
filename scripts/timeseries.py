@@ -593,10 +593,12 @@ def plot_spatial_analysis(reg: dict, stats_maps: dict, times: np.ndarray,
 
     ax0 = fig.add_subplot(gs[0, 0])
     norm_slope = TwoSlopeNorm(vmin=-vabs, vcenter=0, vmax=vabs)
+    slope_cmap = plt.colormaps["RdYlGn"].copy()
+    slope_cmap.set_bad(color="grey")
     ishow(ax0, slope_disp,
           f"NDVI Trend (slope/yr)  {year_min}–{year_max}\n"
           f"[α<0.05 only, grey=not significant]",
-          "RdYlGn", norm=norm_slope)
+          slope_cmap, norm=norm_slope)
 
     ax1 = fig.add_subplot(gs[0, 1])
     ishow(ax1, r2, "R² (OLS fit quality)", "YlOrRd", vmin=0, vmax=1)
